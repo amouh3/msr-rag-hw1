@@ -1,1 +1,31 @@
-[0m[[0m[0mdebug[0m] [0m[0mJar uptodate: C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\msr-rag-hw1_3-0.1.0-SNAPSHOT.jar[0m
+[0m[[0m[0mdebug[0m] [0m[0mPackaging C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\msr-rag-hw1_3-0.1.0-SNAPSHOT.jar ...[0m
+[0m[[0m[0mdebug[0m] [0m[0mInput file mappings:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\chunk[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\chunk[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\chunk\Chunker$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\chunk\Chunker$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\chunk\Chunker.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\chunk\Chunker.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\chunk\Chunker.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\chunk\Chunker.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\Driver$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\Driver$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\Driver.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\Driver.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\Driver.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\Driver.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\pdf[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\pdf[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\pdf\Pdfs$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\pdf\Pdfs$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\pdf\Pdfs.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\pdf\Pdfs.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	edu\uic\msr\pdf\Pdfs.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	  C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes\edu\uic\msr\pdf\Pdfs.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0mDone packaging.[0m
