@@ -26,7 +26,6 @@ object Driver {
       Source.fromFile(listFile).getLines()
         .map(_.replace("\uFEFF", "").trim)   // strip BOM if present
         .filter(_.nonEmpty)
-        .take(2)
         .toVector
 
     println(s"Found ${pdfs.size} PDFs. Extracting first two…")
