@@ -1,10 +1,15 @@
-*.class
+# sbt/scala
+target/
+project/target/
 *.log
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
+# local data & artifacts
+conf/local.conf
+*.csv
+/msr_data/
+/artifacts/
 
-# local data & outputs
-MSRCorpus/
-artifacts/
-data/
+# OS/IDE
+.DS_Store
+.idea/
+*.iml

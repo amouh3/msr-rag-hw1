@@ -13,7 +13,22 @@ lazy val root = (project in file("."))
       // Hadoop MapReduce (compile on Windows; we’ll run locally later / on EMR)
       "org.apache.hadoop" % "hadoop-common" % "3.3.6",
       "org.apache.hadoop" % "hadoop-mapreduce-client-core" % "3.3.6",
-      "org.apache.hadoop" % "hadoop-mapreduce-client-jobclient" % "3.3.6"
+      "org.apache.hadoop" % "hadoop-mapreduce-client-jobclient" % "3.3.6",
+
+      // HTTP client + JSON (Ollama API)
+      "com.softwaremill.sttp.client3" %% "core"  % "3.9.5",
+      "com.softwaremill.sttp.client3" %% "circe" % "3.9.5",
+      "io.circe" %% "circe-generic" % "0.14.9",
+      "io.circe" %% "circe-parser"  % "0.14.9",
+
+      // Lucene index + analysis + vectors (HNSW)
+      "org.apache.lucene" % "lucene-core" % "9.10.0",
+      "org.apache.lucene" % "lucene-analysis-common" % "9.10.0",
+      "com.softwaremill.sttp.client3" %% "core"  % "3.9.5",
+      "com.softwaremill.sttp.client3" %% "circe" % "3.9.5",
+      "io.circe" %% "circe-generic" % "0.14.9",
+      "io.circe" %% "circe-parser"  % "0.14.9",
+
     )
 
   )
