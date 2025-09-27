@@ -1,1 +1,1 @@
-["edu.uic.msr.Driver","edu.uic.msr.EmbedSmoke","edu.uic.msr.IndexAll"]
+["edu.uic.msr.Driver","edu.uic.msr.EmbedSmoke","edu.uic.msr.IndexAll","edu.uic.msr.SearchSmoke","edu.uic.msr.rag.JobMain","edu.uic.msr.rag.LuceneSearchSmoke"]

@@ -1,19 +1,33 @@
 package edu.uic.msr
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import scala.io.Source
 import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets
 import edu.uic.msr.pdf.Pdfs
 import edu.uic.msr.chunk.Chunker
-import edu.uic.msr.ollama.Ollama   // object, not class
+import edu.uic.msr.ollama.Ollama
+import org.slf4j.LoggerFactory
 
 object IndexAll {
-  def main(args: Array[String]): Unit = {
-    val confPath =
-      if (args.length >= 2 && args(0) == "--conf") args(1) else "conf/local.conf"
+  // --- logging ---
+  private val log = LoggerFactory.getLogger(getClass)
 
-    val cfg     = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
+  // --- arg helpers ---
+  private def argAfter(flag: String, args: Array[String]): Option[String] =
+    args.sliding(2).find(a => a.length == 2 && a(0) == flag).map(_(1))
+
+  // --- config loader (no extra file needed) ---
+  private def loadConfig(confPathOpt: Option[String]): Config = {
+    val base = ConfigFactory.load() // loads application.conf / reference.conf on classpath
+    confPathOpt
+      .map(p => ConfigFactory.parseFile(new java.io.File(p)).resolve().withFallback(base))
+      .getOrElse(base)
+  }
+
+  def main(args: Array[String]): Unit = {
+    val cfg = loadConfig(argAfter("--conf", args))
+
     val list    = cfg.getString("io.pdfListFile")
     val workDir = cfg.getString("io.workDir")
     val outCsv  = cfg.getString("index.out")
@@ -24,22 +38,27 @@ object IndexAll {
     Files.createDirectories(Paths.get(workDir))
 
     val docs =
-      Source.fromFile(list).getLines().map(_.replace("\uFEFF","").trim).filter(_.nonEmpty).take(maxDocs).toVector
+      Source.fromFile(list).getLines()
+        .map(_.replace("\uFEFF", "").trim)
+        .filter(_.nonEmpty)
+        .take(maxDocs)
+        .toVector
 
-    println(s"Indexing ${docs.size} PDFs -> $outCsv using model '$model' (batch=$batch)")
+    log.info(s"Indexing ${docs.size} PDFs -> $outCsv using model='$model' batch=$batch")
+    log.debug(s"workDir=$workDir, maxDocs=$maxDocs")
 
     val writer = java.nio.file.Files.newBufferedWriter(Paths.get(outCsv), StandardCharsets.UTF_8)
     try {
       writer.write("doc,chunk_idx,chars,vec\n")
 
       docs.zipWithIndex.foreach { case (doc, di) =>
-        val t0 = System.nanoTime()
+        val t0     = System.nanoTime()
         val text   = Pdfs.readText(doc)
         val chunks = Chunker.chunks(text, maxChars = 800, overlap = 160)
 
-        println(f"PDF[$di%d]: $doc  chunks=${chunks.size}%d")
+        log.info(f"PDF[$di%3d] chunks=${chunks.size}%4d  file=$doc")
 
-        // Embed in mini-batches using the object Ollama
+        // Embed in mini-batches
         chunks.grouped(batch).zipWithIndex.foreach { case (group, gi) =>
           val vecs: Vector[Array[Float]] = Ollama.embed(group.toVector, model)
           group.zip(vecs).zipWithIndex.foreach { case ((chunkText, vec), cj) =>
@@ -50,10 +69,10 @@ object IndexAll {
         }
 
         val ms = (System.nanoTime() - t0) / 1e6
-        println(f"  done in $ms%.1f ms")
+        log.info(f"  done in $ms%.1f ms")
       }
 
-      println(s"✅ index written to $outCsv")
+      log.info(s"✅ index written to $outCsv")
     } finally {
       writer.close()
     }

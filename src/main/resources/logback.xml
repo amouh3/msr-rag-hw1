@@ -1,0 +1,46 @@
+<configuration scan="true" scanPeriod="30 seconds">
+    <!-- You can override via JVM prop: -Dapp.log.level=INFO -->
+    <property name="APP_LEVEL" value="${app.log.level:-INFO}" />
+    <property name="FILE_PATH" value="logs/msr-rag.log" />
+
+    <!-- Console -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Rolling file: keep history and cap size -->
+    <appender name="ROLLING" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${FILE_PATH}</file>
+        <encoder>
+            <pattern>%date %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- one file per day, up to 14 days -->
+            <fileNamePattern>logs/msr-rag.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxHistory>14</maxHistory>
+            <timeBasedFileNamingAndTriggeringPolicy
+                    class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <!-- rollover if file exceeds 20MB -->
+                <maxFileSize>20MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Quiet down noisy third-party loggers -->
+    <logger name="org.apache.pdfbox" level="WARN"/>
+    <logger name="org.apache.fontbox" level="WARN"/>
+
+    <!-- Your code: allow DEBUG by default, bump to TRACE when needed -->
+    <logger name="edu.uic.msr" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="ROLLING"/>
+    </logger>
+
+    <!-- Root -->
+    <root level="${APP_LEVEL}">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="ROLLING"/>
+    </root>
+</configuration>
