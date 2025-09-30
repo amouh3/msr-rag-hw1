@@ -1,2 +1,8 @@
+[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- [E190] Potential Issue Warning: C:\Users\Ali\CS441\msr-rag-hw1\src\main\scala\edu\uic\msr\rag\Ask.scala:36:99 [0m[0m[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m36 |[0m    log.info([31ms"Ask: root=[0m$rootPath[31m  model=[0m$model[31m  k=[0m$k[31m  q='[0m${qArg.take([31m120[0m)}${[33mif[0m (qArg.length>[31m120[0m) [31m"…"[0m}[31m'"[0m)[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m[33m   |[0m                                                                                                   ^^^[0m[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m   |[0m      Discarded non-Unit value of type String. You may want to use `()`.[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m   |[0m[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m   |[0m longer explanation available when compiling with `-explain`[0m
 [0m[[0m[33mwarn[0m] [0m[0mthere was 1 deprecation warning; re-run with -deprecation for details[0m
-[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[33mwarn[0m] [0m[0mtwo warnings found[0m

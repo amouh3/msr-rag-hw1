@@ -13,8 +13,9 @@ import io.circe.parser._
 import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets
 
-/** For each shard key, writes a Lucene index locally, then copies to HDFS:
- *   <msr.outputDir>/index_shard_<N>
+/** For each shard key, writes a Lucene index locally, then copies to FS:
+ *   <msr.output.dir>/index_shard_<N>
+ * Set msr.output.dir in your conf, e.g. file:///C:/tmp/index_shards_mr_out
  */
 class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
   private val log   = LoggerFactory.getLogger(getClass)
@@ -25,7 +26,7 @@ class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
                       ctx: Reducer[IntWritable, Text, Text, Text]#Context): Unit = {
     val conf     = ctx.getConfiguration
     val shardId  = key.get
-    val hOutRoot = conf.get("msr.output.dir", "hdfs:///msr/index_shards")
+    val hOutRoot = conf.get("msr.output.dir", "file:///C:/tmp/index_shards_mr_out")
 
     // 1) build index in a local temp dir (fast)
     val localDir = Files.createTempDirectory(s"lucene-shard-$shardId")
@@ -42,36 +43,39 @@ class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
           case Left(err) =>
             log.warn(s"Reducer[$shardId]: bad JSON: $err")
           case Right(js) =>
-            val c = js.hcursor
-            val docId  = c.get[String]("doc_id").getOrElse("NA")
-            val chunk  = c.get[Int]("chunk_id").getOrElse(-1)
-            val text   = c.get[String]("text").getOrElse("")
-            val vec    = c.get[Vector[Float]]("vec").map(_.toArray).getOrElse(Array.emptyFloatArray)
+            val c     = js.hcursor
+            val docId = c.get[String]("doc_id").getOrElse("NA")
+            val chunk = c.get[Int]("chunk_id").getOrElse(-1)
+            val text  = c.get[String]("text").getOrElse("")
+            val hash  = c.get[String]("hash").getOrElse("")
+            val ts    = c.get[Long]("ts").map(_.toString).getOrElse("")
+            val vec   = c.get[Vector[Float]]("vec").map(_.toArray).getOrElse(Array.emptyFloatArray)
 
             val d = new Document()
-            d.add(new StringField("doc_id",   docId,               Field.Store.YES))
-            d.add(new StringField("chunk_id", chunk.toString,      Field.Store.YES))
-            d.add(new TextField  ("text",     text,                Field.Store.YES))
+            d.add(new StringField("doc_id",   docId,                    Field.Store.YES))
+            d.add(new StringField("chunk_id", chunk.toString,           Field.Store.YES))
+            d.add(new TextField  ("text",     text,                     Field.Store.YES))
+            d.add(new StringField("hash",     hash,                     Field.Store.YES))
+            d.add(new StringField("ts",       ts,                       Field.Store.YES))
             d.add(new KnnFloatVectorField("vec", vec, VectorSimilarityFunction.COSINE))
             iw.addDocument(d)
         }
       }
+
       iw.commit()
     } finally {
       iw.close()
       dir.close()
     }
 
-    // 2) copy the local directory to HDFS: <hOutRoot>/index_shard_<shardId>
+    // 2) copy the local directory to target FS: <hOutRoot>/index_shard_<shardId>
     val hConf    = new org.apache.hadoop.conf.Configuration()
     val hfs      = FileSystem.get(hConf)
     val destRoot = new Path(hOutRoot)
     val destDir  = new Path(destRoot, s"index_shard_$shardId")
 
-    // make sure root exists
     if (!hfs.exists(destRoot)) hfs.mkdirs(destRoot)
 
-    // Hadoop util: copy directory tree (recursive)
     val ok = FileUtil.copy(localDir.toFile, hfs, destDir, true, hConf)
     if (!ok) {
       log.error(s"Reducer[$shardId]: FAILED to copy $localDir -> $destDir")
@@ -79,7 +83,7 @@ class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
       log.info(s"Reducer[$shardId]: copied index to $destDir")
     }
 
-    // Optional “marker” so you can see something in MR output
+    // marker line into MR part files (handy for sanity checks)
     outK.set(s"shard_$shardId")
     outV.set(destDir.toString)
     ctx.write(outK, outV)

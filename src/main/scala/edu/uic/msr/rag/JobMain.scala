@@ -9,9 +9,16 @@ import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, TextInputFormat}
 import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, TextOutputFormat}
 import org.slf4j.LoggerFactory
 
-/** Runs the MR job:
- *   input: mr.inputList  (text file with absolute PDF paths, one per line)
- *   output: mr.outputDir (root dir; reducers write shard outputs under it)
+/** Runs the Map/Reduce job in LOCAL mode.
+ *
+ *  Config keys (conf/local.conf):
+ *    mr.inputList = "file:///C:/tmp/pdf_list.txt"   // absolute PDF paths, one per line
+ *    mr.outputDir = "file:///C:/tmp/index_shards"   // logical root (we'll write to <outputDir>_mr_out)
+ *    mr.shards    = 2                                // number of reducers / Lucene shards
+ *    embed.model  = "mxbai-embed-large"
+ *    embed.maxChars (optional, default 1000)
+ *    embed.overlap (optional, default 200)
+ *    embed.batch   (optional, default 8)
  *
  * Usage:
  *   sbt "runMain edu.uic.msr.rag.JobMain --conf conf/local.conf"
@@ -25,32 +32,42 @@ object JobMain {
 
     val cfg = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
 
+    // ---- read config ----
     val input  = cfg.getString("mr.inputList")   // e.g. file:///C:/tmp/pdf_list.txt
     val outDir = cfg.getString("mr.outputDir")   // e.g. file:///C:/tmp/index_shards
     val shards = cfg.getInt("mr.shards")
     val model  = cfg.getString("embed.model")
     val maxCh  = if (cfg.hasPath("embed.maxChars")) cfg.getInt("embed.maxChars") else 1000
     val ovl    = if (cfg.hasPath("embed.overlap"))  cfg.getInt("embed.overlap")  else 200
-    val batch  = if (cfg.hasPath("embed.batch")) cfg.getInt("embed.batch") else 8
-    log.info(s"JobMain: input=$input  output=$outDir  shards=$shards  model=$model")
+    val batch  = if (cfg.hasPath("embed.batch"))    cfg.getInt("embed.batch")    else 8
 
-    // Hadoop configuration in LOCAL mode
+    // Single source of truth for MR output root (must NOT exist before run)
+    val outMr  = s"${outDir}_mr_out"
+
+    log.info(s"JobMain: input=$input  output=$outMr  shards=$shards  model=$model")
+
+    // ---- Hadoop LOCAL mode config ----
     val hConf = new Configuration()
-    hConf.set("fs.defaultFS", "file:///")
-    hConf.set("mapreduce.framework.name", "local")
+    hConf.set("fs.defaultFS", "file:///")                 // local FS
+    hConf.set("mapreduce.framework.name", "local")        // local runner
     hConf.set("mapreduce.jobtracker.address", "local")
-    hConf.setInt("msr.embed.batch", batch)
 
-    // Let mappers/reducers see these settings
+    // Pass knobs to Mapper/Reducer via job conf
     hConf.setInt("mapreduce.job.reduces", shards)
     hConf.set("msr.embed.model", model)
-    hConf.set("msr.output.dir", outDir)
+    hConf.setInt("msr.embed.batch", batch)
     hConf.setInt("msr.chunk.maxChars", maxCh)
     hConf.setInt("msr.chunk.overlap", ovl)
+
+    // IMPORTANT: Reducer copies Lucene shards under this root
+    hConf.set("msr.output.dir", outMr)
+
+    // Optional: propagate Ollama host if you want to read it inside tasks
     sys.env.get("OLLAMA_HOST").foreach(h => hConf.set("msr.ollama.host", h))
 
+    // ---- Build job ----
     val job = Job.getInstance(hConf, s"MSR-RAG Index (shards=$shards)")
-    job.setJarByClass(classOf[RagMapper])
+    job.setJarByClass(classOf[RagMapper])                 // ensures all classes are on the job jar
 
     // Mapper/Reducer classes
     job.setMapperClass(classOf[RagMapper])
@@ -67,11 +84,10 @@ object JobMain {
 
     // IO formats + paths
     job.setInputFormatClass(classOf[TextInputFormat])
-    FileInputFormat.addInputPath(job, new Path(input))
+    FileInputFormat.addInputPath(job, new Path(input))     // the text file with absolute PDF paths
 
     job.setOutputFormatClass(classOf[TextOutputFormat[Text, Text]])
-    // Hadoop requires the output dir NOT to exist
-    FileOutputFormat.setOutputPath(job, new Path(outDir + "_mr_out"))
+    FileOutputFormat.setOutputPath(job, new Path(outMr))   // MUST NOT exist before run
 
     val ok = job.waitForCompletion(true)
     if (!ok) sys.exit(1)

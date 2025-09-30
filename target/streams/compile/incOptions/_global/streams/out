@@ -1,74 +1,13 @@
 [0m[[0m[0mdebug[0m] [0m[0mCreated transactional ClassFileManager with tempDir = C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes.bak[0m
 [0m[[0m[0mdebug[0m] [0m[0mAbout to delete class files:[0m
 [0m[[0m[0mdebug[0m] [0m[0mWe backup class files:[0m
-[0m[[0m[0mdebug[0m] [0m[0mCreated transactional ClassFileManager with tempDir = C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes.bak[0m
-[0m[[0m[0mdebug[0m] [0m[0mAbout to delete class files:[0m
-[0m[[0m[0mdebug[0m] [0m[0mWe backup class files:[0m
 [0m[[0m[0mdebug[0m] [0m[0mRegistering generated classes:[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$Hit$1.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	JobMain.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Chunker.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$Hit$3$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	RagMapper.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	EmbedSmoke.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$$anon$1.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	IndexAll.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedReq.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedResp.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Driver.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	JobMain$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedResp.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Driver$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Pdfs$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Pdfs.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedResp$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	IndexAll$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedReq$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Chunker$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedReq.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	ShardReducer.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedResp$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedReq$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	EmbedSmoke$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke$Row.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke$Row$.class[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$Hit$1.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	JobMain.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Chunker.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$Hit$3$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	RagMapper.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	EmbedSmoke.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$$anon$1.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	IndexAll.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedReq.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedResp.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Driver.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	JobMain$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedResp.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Driver$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Pdfs$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Pdfs.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedResp$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	IndexAll$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedReq$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Chunker$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	LuceneSearchSmoke$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedReq.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	ShardReducer.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$MultiEmbedResp$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	Ollama$SingleEmbedReq$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	EmbedSmoke$.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke$Row.tasty[0m
-[0m[[0m[0mdebug[0m] [0m[0m	SearchSmoke$Row$.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask$Hit.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask$Hit$.class[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask$.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask$Hit.tasty[0m
+[0m[[0m[0mdebug[0m] [0m[0m	Ask$Hit$.tasty[0m
 [0m[[0m[0mdebug[0m] [0m[0mRemoving the temporary directory used for backing up class files: C:\Users\Ali\CS441\msr-rag-hw1\target\scala-3.5.1\classes.bak[0m
