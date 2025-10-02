@@ -1,3 +1,7 @@
 [0m[[0m[0mdebug[0m] [0m[0mnot up to date. inChanged = true, force = false[0m
 [0m[[0m[0mdebug[0m] [0m[0mUpdating ProjectRef(uri("file:/C:/Users/Ali/CS441/msr-rag-hw1/project/"), "msr-rag-hw1-build")...[0m
+[0m[[0m[0minfo[0m] [0m[0mUpdating msr-rag-hw1-build[0m
+[0m[[0m[0minfo[0m] [0m[0mResolved msr-rag-hw1-build dependencies[0m
+[0m[[0m[0minfo[0m] [0m[0mFetching artifacts of msr-rag-hw1-build[0m
+[0m[[0m[0minfo[0m] [0m[0mFetched artifacts of msr-rag-hw1-build[0m
 [0m[[0m[0mdebug[0m] [0m[0mDone updating ProjectRef(uri("file:/C:/Users/Ali/CS441/msr-rag-hw1/project/"), "msr-rag-hw1-build")[0m

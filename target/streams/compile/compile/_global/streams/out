@@ -1,2 +1,6 @@
-[0m[[0m[33mwarn[0m] [0m[0mthere was 1 deprecation warning; re-run with -deprecation for details[0m
-[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m[33m-- [E121] Pattern Match Warning: C:\Users\Ali\CS441\msr-rag-hw1\src\main\scala\edu\uic\msr\rag\Indexer.scala:91:13 [0m[0m[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m91 |[0m        [33mcase[0m other     => other.toString[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m[33m   |[0m             ^^^^^[0m[0m
+[0m[[0m[33mwarn[0m] [0m[0m[33m   |[0mUnreachable case except for [31mnull[0m (if this is intentional, consider writing [33mcase[0m [31mnull[0m => instead).[0m
+[0m[[0m[33mwarn[0m] [0m[0mthere were 2 deprecation warnings; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mtwo warnings found[0m

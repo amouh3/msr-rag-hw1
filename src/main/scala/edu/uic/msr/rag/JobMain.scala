@@ -46,11 +46,36 @@ object JobMain {
 
     log.info(s"JobMain: input=$input  output=$outMr  shards=$shards  model=$model")
 
-    // ---- Hadoop LOCAL mode config ----
-    val hConf = new Configuration()
-    hConf.set("fs.defaultFS", "file:///")                 // local FS
-    hConf.set("mapreduce.framework.name", "local")        // local runner
-    hConf.set("mapreduce.jobtracker.address", "local")
+    // ---- Hadoop config (local | yarn) ----
+    val mode =
+      if (args.contains("--mode")) args(args.indexOf("--mode") + 1)
+      else if (cfg.hasPath("mr.mode")) cfg.getString("mr.mode")
+      else "yarn" // default to "real Hadoop"
+
+    val hConf = new Configuration() // loads core/hdfs/yarn-site.xml if present
+
+    def setLocal(): Unit = {
+      hConf.set("fs.defaultFS", "file:///")
+      hConf.set("mapreduce.framework.name", "local")
+    }
+
+    mode match {
+      case "local" => setLocal()
+      case "yarn"  =>
+        val hasYarn =
+          hConf.getResource("yarn-site.xml") != null ||
+            sys.env.get("YARN_CONF_DIR").nonEmpty ||
+            sys.env.get("HADOOP_CONF_DIR").nonEmpty
+        if (!hasYarn)
+          throw new IllegalStateException("YARN configs not found. Run with --mode local for dev, or submit on a cluster.")
+      case other => throw new IllegalArgumentException(s"Unknown --mode: $other")
+    }
+
+    // Helpful: print exactly what you’re using
+    import scala.util.Try
+    Try(log.info(s"framework=${hConf.get("mapreduce.framework.name")}"))
+    Try(log.info(s"defaultFS=${hConf.get("fs.defaultFS")}"))
+
 
     // Pass knobs to Mapper/Reducer via job conf
     hConf.setInt("mapreduce.job.reduces", shards)
