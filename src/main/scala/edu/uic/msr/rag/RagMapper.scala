@@ -58,7 +58,17 @@ class RagMapper extends Mapper[LongWritable, Text, IntWritable, Text] {
       log.info(s"Mapper: $docId dropped=$dropped kept=${chunks.size}")
     }
 
-    val vecs: Vector[Array[Float]] = Ollama.embed(chunks.toVector, model)
+    // NEW: use configurable base (Hadoop conf, then env, then default)
+    val base = Option(conf.get("msr.ollama.host"))
+      .orElse(sys.env.get("OLLAMA_HOST"))
+      .getOrElse("http://127.0.0.1:11434")
+
+    val client = edu.uic.msr.ollama.Ollama.client(Some(base))
+
+    // Batch embed the chunks
+    val vecs: Vector[Array[Float]] =
+      client.embedBatch(chunks.toVector, model, batch = conf.getInt("msr.embed.batch", 16))
+
     log.debug(s"Embedded ${chunks.size} chunks; example dim=${vecs.headOption.map(_.length).getOrElse(-1)}")
 
     val shard = math.abs(docId.hashCode) % reducers
@@ -80,4 +90,6 @@ class RagMapper extends Mapper[LongWritable, Text, IntWritable, Text] {
 
     log.info(s"Mapper: $docId -> chunks=${chunks.size} shard=$shard model=$model")
   }
+
+
 }

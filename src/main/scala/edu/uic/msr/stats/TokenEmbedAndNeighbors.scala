@@ -12,31 +12,38 @@ object TokenEmbedAndNeighbors {
   }
   private def cos(a: Array[Float], b: Array[Float]): Float = {
     var s = 0.0f; var i = 0
-    while (i < a.length && i < b.length) { s += a(i) * b(i); i += 1 }
+    val len = math.min(a.length, b.length)
+    while (i < len) { s += a(i) * b(i); i += 1 }
     s
   }
 
   def main(args: Array[String]): Unit = {
     val confPath = if (args.contains("--conf")) args(args.indexOf("--conf")+1) else "conf/local.conf"
-    val cfg = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
+    val cfg      = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
 
     val outDir   = Paths.get(cfg.getString("stats.outputDir"))
     val model    = cfg.getString("embed.model")
     val topN     = if (cfg.hasPath("stats.topVocab")) cfg.getInt("stats.topVocab") else 5000
-    val kNN      = if (cfg.hasPath("stats.kNN")) cfg.getInt("stats.kNN") else 10
+    val kNN      = if (cfg.hasPath("stats.kNN"))       cfg.getInt("stats.kNN")       else 10
+    val batch    = if (cfg.hasPath("embed.batch"))     cfg.getInt("embed.batch")     else 64
     Files.createDirectories(outDir)
 
-    // Read topN tokens from vocab.csv
+    // Read topN tokens from vocab.csv (expects header: token,token_id,freq)
     val vocabCsv = outDir.resolve("vocab.csv").toString
-    val vocab = Source.fromFile(vocabCsv).getLines().drop(1).take(topN).map { line =>
-      val Array(tok, id, freq) = line.split(",", 3)
-      tok
+    val vocab = Source.fromFile(vocabCsv).getLines().drop(1).take(topN).flatMap { line =>
+      val cols = line.split(",", 3)
+      if (cols.length >= 1) Some(cols(0)) else None
     }.toVector
 
-    // Embed (batch in Ollama implementation)
-    val vecs = Ollama.embed(vocab, model).map(l2)
+    // ---- Batched embedding + L2 normalization ----
+    val vecs = vocab
+      .grouped(batch)
+      .flatMap(grp => Ollama.embed(grp.toVector, model))
+      .toVector
+      .map(l2)
+
     val dim  = vecs.headOption.map(_.length).getOrElse(0)
-    println(s"Embedded ${vecs.size} tokens; dim=$dim")
+    println(s"Embedded ${vecs.size} tokens (requested topN=$topN); dim=$dim; batch=$batch")
 
     // Write token_embeddings.csv
     val embCsv = new StringBuilder
@@ -51,13 +58,12 @@ object TokenEmbedAndNeighbors {
     Files.write(outDir.resolve("token_embeddings.csv"), embCsv.result().getBytes("UTF-8"),
       StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
 
-    // Compute neighbors
+    // Compute neighbors (brute-force)
     val neighbors = new StringBuilder
     neighbors.append("token,neighbor,cosine\n")
     val arr = vecs.toArray
     val idx = vocab.toArray
     for (i <- arr.indices) {
-      // brute-force top-k
       val scores = arr.indices.iterator
         .filter(_ != i)
         .map(j => (j, cos(arr(i), arr(j))))

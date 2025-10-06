@@ -9,32 +9,78 @@ import org.apache.hadoop.mapreduce.lib.input.{FileInputFormat, TextInputFormat}
 import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, TextOutputFormat}
 import org.slf4j.LoggerFactory
 
-/** Runs the Map/Reduce job in LOCAL mode.
+/** MapReduce driver that builds Lucene shard directories from a list of PDFs.
  *
- *  Config keys (conf/local.conf):
- *    mr.inputList = "file:///C:/tmp/pdf_list.txt"   // absolute PDF paths, one per line
- *    mr.outputDir = "file:///C:/tmp/index_shards"   // logical root (we'll write to <outputDir>_mr_out)
- *    mr.shards    = 2                                // number of reducers / Lucene shards
- *    embed.model  = "mxbai-embed-large"
- *    embed.maxChars (optional, default 1000)
- *    embed.overlap (optional, default 200)
- *    embed.batch   (optional, default 8)
+ * Usage examples:
+ *   # local dev (filesystem)
+ *   sbt "runMain edu.uic.msr.rag.JobMain --conf conf/mr.local.conf --mode local"
  *
- * Usage:
- *   sbt "runMain edu.uic.msr.rag.JobMain --conf conf/local.conf"
+ *   # EMR/YARN with a config bundled in the JAR (src/main/resources/emr-dev.conf)
+ *   hadoop jar msr-rag-hw1-assembly.jar \
+ *     edu.uic.msr.rag.JobMain \
+ *     --conf emr-dev.conf
+ *
+ * Required config keys (in the selected conf):
+ *   mr.inputList   = "file:///.../pdf_list.txt" | "s3a://bucket/input/pdf_list.txt"
+ *   mr.outputDir   = "file:///.../index_shards" | "s3a://bucket/outputs/index_shards"
+ *   mr.shards      = 4
+ *   embed.model    = "mxbai-embed-large"
+ * Optional:
+ *   embed.maxChars = 1000
+ *   embed.overlap  = 200
+ *   embed.batch    = 8
+ * Notes:
+ *   - The job writes to outMr = mr.outputDir + "_mr_out"
+ *   - Reducers copy Lucene indexes into msr.output.dir (we set it to outMr)
  */
 object JobMain {
   private val log = LoggerFactory.getLogger(getClass)
 
-  def main(args: Array[String]): Unit = {
-    val confPath =
-      if (args.contains("--conf")) args(args.indexOf("--conf") + 1) else "conf/local.conf"
+  /** Load a HOCON file by name (resource inside the JAR) or from the filesystem.
+   * Priority: --conf value as resource -> --conf value as file -> application.conf defaults.
+   * Accepts plain names like "emr-dev.conf" or paths like "conf/mr.local.conf".
+   */
+  private def loadConfig(confNameOrPathOpt: Option[String]) = {
+    val base = ConfigFactory.load() // application.conf (defaults)
 
-    val cfg = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
+    val name = confNameOrPathOpt.getOrElse("local.conf") // default if none passed
+
+    // Try classpath resources first (next to application.conf)
+    val cl = Thread.currentThread().getContextClassLoader
+    val resourceUrl =
+      Option(cl.getResource(name))
+        .orElse(Option(cl.getResource(s"conf/$name"))) // allows packaging under /conf as well
+
+    val parsedFromResource = resourceUrl.map(ConfigFactory.parseURL)
+
+    // If not found on classpath, try as a real file on disk (absolute or under ./conf/)
+    val parsedFromFile =
+      if (parsedFromResource.isEmpty) {
+        val f1 = new java.io.File(name)
+        val f2 = new java.io.File(s"conf/$name")
+        if (f1.exists()) Some(ConfigFactory.parseFile(f1))
+        else if (f2.exists()) Some(ConfigFactory.parseFile(f2))
+        else None
+      } else None
+
+    val parsed = parsedFromResource.orElse(parsedFromFile).getOrElse {
+      throw new IllegalArgumentException(
+        s"Could not find config '$name' as a classpath resource or file (also tried 'conf/$name')."
+      )
+    }
+
+    parsed.withFallback(base).resolve()
+  }
+
+  def main(args: Array[String]): Unit = {
+    // ---- choose config ----
+    val cfg = loadConfig(
+      if (args.contains("--conf")) Some(args(args.indexOf("--conf") + 1)) else None
+    )
 
     // ---- read config ----
-    val input  = cfg.getString("mr.inputList")   // e.g. file:///C:/tmp/pdf_list.txt
-    val outDir = cfg.getString("mr.outputDir")   // e.g. file:///C:/tmp/index_shards
+    val input  = cfg.getString("mr.inputList")     // e.g. file:///... or s3a://...
+    val outDir = cfg.getString("mr.outputDir")     // logical root (we'll write to <outputDir>_mr_out)
     val shards = cfg.getInt("mr.shards")
     val model  = cfg.getString("embed.model")
     val maxCh  = if (cfg.hasPath("embed.maxChars")) cfg.getInt("embed.maxChars") else 1000
@@ -50,9 +96,9 @@ object JobMain {
     val mode =
       if (args.contains("--mode")) args(args.indexOf("--mode") + 1)
       else if (cfg.hasPath("mr.mode")) cfg.getString("mr.mode")
-      else "yarn" // default to "real Hadoop"
+      else "yarn" // default to "real Hadoop/EMR"
 
-    val hConf = new Configuration() // loads core/hdfs/yarn-site.xml if present
+    val hConf = new Configuration() // loads core-site.xml/hdfs-site.xml/yarn-site.xml if present
 
     def setLocal(): Unit = {
       hConf.set("fs.defaultFS", "file:///")
@@ -67,7 +113,9 @@ object JobMain {
             sys.env.get("YARN_CONF_DIR").nonEmpty ||
             sys.env.get("HADOOP_CONF_DIR").nonEmpty
         if (!hasYarn)
-          throw new IllegalStateException("YARN configs not found. Run with --mode local for dev, or submit on a cluster.")
+          throw new IllegalStateException(
+            "YARN configs not found. Run with --mode local for dev, or submit on a cluster."
+          )
       case other => throw new IllegalArgumentException(s"Unknown --mode: $other")
     }
 
@@ -76,23 +124,22 @@ object JobMain {
     Try(log.info(s"framework=${hConf.get("mapreduce.framework.name")}"))
     Try(log.info(s"defaultFS=${hConf.get("fs.defaultFS")}"))
 
-
-    // Pass knobs to Mapper/Reducer via job conf
+    // ---- propagate knobs to tasks ----
     hConf.setInt("mapreduce.job.reduces", shards)
     hConf.set("msr.embed.model", model)
     hConf.setInt("msr.embed.batch", batch)
     hConf.setInt("msr.chunk.maxChars", maxCh)
     hConf.setInt("msr.chunk.overlap", ovl)
 
-    // IMPORTANT: Reducer copies Lucene shards under this root
+    // Reducer copies Lucene shards under this root
     hConf.set("msr.output.dir", outMr)
 
-    // Optional: propagate Ollama host if you want to read it inside tasks
+    // Optional: pass Ollama host (useful when mappers must hit an EC2 IP/DNS)
     sys.env.get("OLLAMA_HOST").foreach(h => hConf.set("msr.ollama.host", h))
 
     // ---- Build job ----
     val job = Job.getInstance(hConf, s"MSR-RAG Index (shards=$shards)")
-    job.setJarByClass(classOf[RagMapper])                 // ensures all classes are on the job jar
+    job.setJarByClass(classOf[RagMapper]) // ensures all classes are on the job jar
 
     // Mapper/Reducer classes
     job.setMapperClass(classOf[RagMapper])
@@ -109,10 +156,10 @@ object JobMain {
 
     // IO formats + paths
     job.setInputFormatClass(classOf[TextInputFormat])
-    FileInputFormat.addInputPath(job, new Path(input))     // the text file with absolute PDF paths
+    FileInputFormat.addInputPath(job, new Path(input)) // text file with absolute PDF URIs/paths
 
     job.setOutputFormatClass(classOf[TextOutputFormat[Text, Text]])
-    FileOutputFormat.setOutputPath(job, new Path(outMr))   // MUST NOT exist before run
+    FileOutputFormat.setOutputPath(job, new Path(outMr)) // MUST NOT exist before run
 
     val ok = job.waitForCompletion(true)
     if (!ok) sys.exit(1)
