@@ -6,13 +6,31 @@ import java.time.Duration
 import io.circe._
 import io.circe.parser._
 import io.circe.syntax._
+import org.slf4j.LoggerFactory
 
+/**
+ * Minimal synchronous HTTP client for a local/remote Ollama server.
+ *
+ * Endpoints used:
+ *  - POST /api/embeddings  { model, prompt } -> { embedding }
+ *  - POST /api/generate    { model, prompt, options } -> { response }
+ *
+ * Logs:
+ *  - INFO: base URL resolved, request completion (status, ms)
+ *  - DEBUG: payload sizes (chars/dim)
+ *  - ERROR: non-2xx responses or JSON parse failures
+ *
+ * Behavior is unchanged—only logging added.
+ */
 object OllamaClient {
+  private val log = LoggerFactory.getLogger(getClass)
+
   private val http = HttpClient.newBuilder()
     .connectTimeout(Duration.ofSeconds(5))
     .build()
 
   private val BASE = sys.env.getOrElse("OLLAMA_HOST", "http://127.0.0.1:11434")
+  log.info("OllamaClient: BASE={}", BASE)
 
   final case class GenerateOptions(num_ctx: Int = 2048, temperature: Double = 0.2)
 
@@ -29,12 +47,27 @@ object OllamaClient {
       .POST(HttpRequest.BodyPublishers.ofString(bodyJson.noSpaces))
       .build()
 
+    val t0 = System.nanoTime()
     val res = http.send(req, HttpResponse.BodyHandlers.ofString())
-    if (res.statusCode() / 100 != 2) Left(s"Embeddings HTTP ${res.statusCode()}: ${res.body()}")
-    else {
-      parse(res.body()).flatMap { js =>
+    val dtMs = (System.nanoTime() - t0) / 1e6
+    if (res.statusCode() / 100 != 2) {
+      val msg = s"Embeddings HTTP ${res.statusCode()}: ${res.body()}"
+      log.error("embed: {}", msg)
+      Left(msg)
+    } else {
+      val parsed = parse(res.body()).flatMap { js =>
         js.hcursor.downField("embedding").as[Vector[Double]]
       }.left.map(_.getMessage)
+
+      parsed match {
+        case Right(vec) =>
+          log.info("embed: ok (dim={}, ~{} ms, model='{}', textChars={})",
+            Int.box(vec.length), Double.box(dtMs), model, Int.box(text.length))
+          Right(vec)
+        case Left(err) =>
+          log.error("embed: JSON parse error: {}", err)
+          Left(err)
+      }
     }
   }
 
@@ -57,10 +90,23 @@ object OllamaClient {
       .POST(HttpRequest.BodyPublishers.ofString(bodyJson.noSpaces))
       .build()
 
+    val t0 = System.nanoTime()
     val res = http.send(req, HttpResponse.BodyHandlers.ofString())
-    if (res.statusCode() / 100 != 2) Left(s"Generate HTTP ${res.statusCode()}: ${res.body()}")
-    else {
-      parse(res.body()).flatMap(_.hcursor.downField("response").as[String]).left.map(_.getMessage)
+    val dtMs = (System.nanoTime() - t0) / 1e6
+    if (res.statusCode() / 100 != 2) {
+      val msg = s"Generate HTTP ${res.statusCode()}: ${res.body()}"
+      log.error("generate: {}", msg)
+      Left(msg)
+    } else {
+      val parsed = parse(res.body()).flatMap(_.hcursor.downField("response").as[String]).left.map(_.getMessage)
+      parsed match {
+        case Right(txt) =>
+          log.info("generate: ok (len={}, ~{} ms, model='{}')", Int.box(txt.length), Double.box(dtMs), model)
+          Right(txt)
+        case Left(err) =>
+          log.error("generate: JSON parse error: {}", err)
+          Left(err)
+      }
     }
   }
 }

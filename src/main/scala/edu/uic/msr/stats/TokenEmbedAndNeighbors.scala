@@ -4,8 +4,21 @@ import com.typesafe.config.ConfigFactory
 import scala.io.Source
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import edu.uic.msr.ollama.Ollama
+import org.slf4j.LoggerFactory
 
+/**
+ * TokenEmbedAndNeighbors:
+ *  - Reads the top-N tokens from stats.outputDir/vocab.csv
+ *  - Gets embeddings from Ollama in batches and L2-normalizes them
+ *  - Writes token_embeddings.csv and brute-force kNN neighbors.csv
+ *
+ * Logging:
+ *  - INFO: config snapshot, counts, output paths
+ *  - DEBUG: batch sizes, dims
+ */
 object TokenEmbedAndNeighbors {
+  private val log = LoggerFactory.getLogger(getClass)
+
   private def l2(v: Array[Float]): Array[Float] = {
     val n = math.sqrt(v.foldLeft(0.0){ (acc,x) => acc + x*x }).toFloat
     if (n == 0f) v else v.map(_ / n)
@@ -28,22 +41,30 @@ object TokenEmbedAndNeighbors {
     val batch    = if (cfg.hasPath("embed.batch"))     cfg.getInt("embed.batch")     else 64
     Files.createDirectories(outDir)
 
+    log.info("TokenEmbedAndNeighbors: conf='{}', outDir='{}', model='{}', topN={}, kNN={}, batch={}",
+      confPath, outDir.toString, model, Int.box(topN), Int.box(kNN), Int.box(batch))
+
     // Read topN tokens from vocab.csv (expects header: token,token_id,freq)
     val vocabCsv = outDir.resolve("vocab.csv").toString
     val vocab = Source.fromFile(vocabCsv).getLines().drop(1).take(topN).flatMap { line =>
       val cols = line.split(",", 3)
       if (cols.length >= 1) Some(cols(0)) else None
     }.toVector
+    log.info("Loaded {} tokens from {}", Int.box(vocab.size), vocabCsv)
 
     // ---- Batched embedding + L2 normalization ----
     val vecs = vocab
       .grouped(batch)
-      .flatMap(grp => Ollama.embed(grp.toVector, model))
+      .flatMap { grp =>
+        log.debug("Embedding batch size={}", Int.box(grp.size))
+        Ollama.embed(grp.toVector, model)
+      }
       .toVector
       .map(l2)
 
     val dim  = vecs.headOption.map(_.length).getOrElse(0)
     println(s"Embedded ${vecs.size} tokens (requested topN=$topN); dim=$dim; batch=$batch")
+    log.info("Embeddings ready: count={}, dim={}", Int.box(vecs.size), Int.box(dim))
 
     // Write token_embeddings.csv
     val embCsv = new StringBuilder
@@ -77,6 +98,7 @@ object TokenEmbedAndNeighbors {
     Files.write(outDir.resolve("neighbors.csv"), neighbors.result().getBytes("UTF-8"),
       StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
 
+    log.info("Wrote {}, {}", outDir.resolve("token_embeddings.csv").toString, outDir.resolve("neighbors.csv").toString)
     println(s"Wrote: ${outDir.resolve("token_embeddings.csv")} and ${outDir.resolve("neighbors.csv")}")
   }
 }

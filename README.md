@@ -2,273 +2,315 @@
 
 
 
-Author: YOUR NAME (exact as roster)  
+Author: Ali Mouhtadi
 
-Email: your\_uic\_email@uic.edu  
+Email: amouh3@uic.edu  
 
 Demo Video: <YouTube link>
 
 
 
-Retrieval-Augmented Generation (RAG) over the MSR PDF corpus. Extract → chunk → embed → index with Lucene HNSW, then answer questions using only retrieved MSR context via Ollama. The LLM is not fine-tuned; answers are guardrailed to the corpus (out-of-corpus ⇒ refusal).
+Retrieval-Augmented Generation (RAG) over the MSR PDF corpus. Extract → chunk → embed → index with Lucene HNSW, then answer questions using only retrieved MSR context via Ollama. 
+Pipeline: extract → chunk → embed → **Lucene HNSW** index (MapReduce local mode) → retrieve → answer with **Ollama**.
+- **Self-contained default run** uses `testCorpus/` + `input/pdf_list2.txt`.
+- **Out-of-corpus questions** are refused.
+
+## Getting Started
+
+
+# What this project does
+
+- End-to-end RAG over a small bundled MSR paper corpus:
+
+- extract + chunk PDFs
+
+- build a Lucene vector index (MapReduce “local” mode)
+
+- embed query → retrieve → pack context → generate with an Ollama LLM
+
+The repo is self-contained for the default run: it uses a small 30-PDF corpus and a relative list file so graders don’t need extra data.
 
 
 
-------------------------------------------------------------
+## REQUIREMENTS(tested version in paranteheses)
 
-REQUIREMENTS
 
-------------------------------------------------------------
+Ensure you have the following set up and installed. Follow their tutorials on the linked sites if necessary.
+- **Java:** 11 or 17 (tested on 11)
+  Check: `java -version`
 
-\- JDK 11–21 (tested on 11)
+- **sbt:** 1.9+ (tested on 1.11.x)  
+  Check: `sbt --version`
 
-\- sbt 1.9+ (tested on 1.11.6)
+- **OS:** Windows 10/11 or macOS (Linux OK)
+- **Ollama (for answer stage):**
+  - Install: https://ollama.com/download  
+    macOS: `brew install --cask ollama`
+  - Run: `ollama serve` (or start the app on Windows)
+  - Models (pull once):
+    ```bash
+    ollama pull mxbai-embed-large
+    ollama pull llama3.2:1b-instruct-q4_K_M
+    ```
+  > If Ollama/models aren’t available, the index still builds; only the final Q&A will be skipped/failed gracefully.
 
-\- Ollama running at http://127.0.0.1:11434
 
-\- Windows 10/11 (tested) — Linux/macOS OK
+# Hadoop (for the MapReduce job)
 
+> **Hadoop:** Not required to install. The job runs with Hadoop **LocalJobRunner** via the libraries on the classpath.
+
+If you do want a full Hadoop install, Hadoop 3.3.x works. Not required for the default run.
+
+
+Optional: Build a runnable JAR (no sbt on target machine)
+
+This repo already works with sbt run. If you prefer a single fat JAR:
+
+`sbt assembly`
+
+
+Output: `target/scala-3.*/*-assembly.jar`
+
+Run a main with the JAR
+
+Using defaults (bundled small corpus):
+
+java -cp target/scala-3.*/msr-rag-hw1-assembly.jar edu.uic.msr.RunAll
+
+
+With a custom config:
+
+`java -Dconfig.file=conf/big.conf \
+     -cp target/scala-3.*/msr-rag-hw1-assembly.jar \
+     edu.uic.msr.rag.AskLucene "your question here"`
+
+Note: I use multiple mains; the JAR isn’t -jar runnable unless a single Main-Class is set. Prefer -cp ... <fully.qualified.Main> as shown.
+
+
+------------------------------------------------------------------------------------------------
 
 
 Models:
 
-\- Embeddings: mxbai-embed-large
+- Embeddings: mxbai-embed-large
 
-\- Generator:  llama3.2:1b-instruct-q4\_K\_M
+- Generator:  llama3.2:1b-instruct-q4\_K\_M
+
+Ollama (for Q&A generation)
+
+- Install Ollama: Windows: https://ollama.com/download
+
+- macOS: brew install --cask ollama (or download app)
+
+Start the Ollama service:
+
+- Windows: Start Menu → Ollama (or ollama serve in a new terminal)
+
+- macOS: ollama serve
+
+Pull the two models used by default:
+
+- `ollama pull mxbai-embed-large`
+- `ollama pull llama3.2:1b-instruct-q4_K_M`
 
 
 
-Pull:
+If models aren’t present, the pipeline still builds the index; Q&A will fail gracefully with a clear error.
 
-&nbsp;   ollama pull mxbai-embed-large
 
-&nbsp;   ollama pull llama3.2:1b-instruct-q4\_K\_M
+
+# Disk & RAM
+
+~200–500 MB free disk for the small corpus outputs.
+
+4–8 GB RAM recommended.
+
+
+
+## Repo layout (Default run relevant portions)
+testCorpus/                     # 30 sample PDFs (bundled)
+input/pdf_list2.txt             # list of those PDFs (relative paths)
+
+conf/
+  - local.conf                    # optional local override (uses bundled corpus, writes into repo)
+  - big.example.conf              # template for large-corpus runs (copy → big.conf and edit)
+  - big.conf                    # (user-specific; not committed)
+
+src/main/resources/application.conf   # DEFAULTS used by `sbt run`:
+
+                                      # - io.pdfListFile = input/pdf_list2.txt
+
+                                      # - index.outRoot  = out_mr_out
+
+                                      # - stats.outputDir= out/stats
+
+                                      # - index.shards   = 1
+
+out/                             # generated artifacts (gitignored)
+out_mr_out/                      # Lucene index shards (gitignored)
+
+
+The default application.conf points to input/pdf_list2.txt, writes outputs to out/ and out_mr_out/, and uses shards=1.
+
+This ensures sbt clean compile run works for anyone who clones the repo—no flags needed.
+---
+
+------------------------------------------------------------
+# BUILD & TEST / QUICK START COMMANDS
+From the repo root:
+
+- `sbt clean compile test`
+
+- `sbt clean compile run`
+
+What you should see:
+
+What you’ll see during run:
+- extraction + chunking logs for 30 PDFs
+- a Hadoop “local” job that writes a Lucene index to out_mr_out/index_shard_0
+- a retrieval of top-K chunks
+- (If Ollama is running and models are pulled) a generated answer printed under " === ANSWER ==="
+
+What you’ll see during tests:
+ - a summary of the tests run and whether they passed or failed.
+
+# To clean any stale outputs(previous runs or partial ones)
+powershell: 
+- `Remove-Item -Recurse -Force .\out_mr_out, .\out_mr_mr_out -ErrorAction SilentlyContinue`
+
+macOS/Linux:
+- `rm -rf out out_mr_out`
+
+
+## Switching configs
+
+You can override the default application.conf in two supported ways:
+
+1) JVM system property (works for all mains)
+
+- `sbt -J-Dconfig.file=conf/local.conf clean compile run`
+
+2) Program Flag (assuming main supports it)
+- `sbt "runMain edu.uic.msr.Driver --conf conf/local.conf"`
+
+
+Big corpus runs
+
+Copy the template and edit paths:
+
+- conf/big.example.conf  →  conf/big.conf
+# edit: io.pdfListFile, index.outRoot, index.shards, etc.
+
+After doing so, simply run it with:
+- `sbt -J-Dconfig.file=conf/big.conf clean compile run`
+
+
+
+By default, big.conf is set for my own local usage of my large corpus but alterations make it functional for any corpus you might want to test it on.
+
+
+
+### Map & Reduce (conceptual explanation)
+
+Mapper (local mode):
+
+- Read a PDF path
+
+- Extract text with PDFBox
+
+- Chunk (≈1000 chars, 200 overlap)
+
+- Embed chunks with mxbai-embed-large (1024-d)
+
+- Emit (shardId, JSON chunk record) where shardId = hash(path) % shards
+
+Reducer:
+
+- For each shardId, collect its JSON records
+
+- Build a Lucene HNSW index (vector field + metadata)
+
+- Write a shard directory: index_shard_<id> (must have segments_*)
+
+- (Local mode) copy to out_mr_out/index_shard_<id>
+
+AskLucene:
+
+- Embed query
+
+- Search all shards (k, perShardFetch)
+
+- Check guards (minTopScore, minKeywordOverlap)
+
+- Pack context → call Ollama generator → print answer + sources
+
+ Further Design Choices
+
+- Chunking: ~1000 chars, ~200 overlap (~10–25%)
+
+- Embedding: mxbai-embed-large (1024-dim) for both index \& query
+
+- Similarity: cosine (L2-normalized vectors)
+
+- Index: Lucene HNSW vector field; 2 shards for MR + fan-out/fan-in queries
+
+- Guardrails: refuse if topScore < 0.28 or keywordOverlap < 1; sanitize stray “\[n]” citations
+
+- Generator: llama3.2:1b-instruct-q4_K_M, temperature = 0.0
 
 
 
 ------------------------------------------------------------
-
-PROJECT LAYOUT (selected)
-
+## Generate Statistics (csv files; by defualt uses the small repository corpus)
 ------------------------------------------------------------
 
-src/
+Once again mentioning that stats is configured to run using the small corpus bundled into the repo.
 
-&nbsp; main/scala/edu/uic/msr/pdf/Pdfs.scala                 # PDF text extraction
+With the default config, they use input/pdf_list2.txt and write to out/stats.
 
-&nbsp; main/scala/edu/uic/msr/chunk/Chunker.scala            # windowed chunking w/ overlap
+# Build vocabulary CSV
+`sbt "runMain edu.uic.msr.stats.VocabExport"`
 
-&nbsp; main/scala/edu/uic/msr/ollama/Ollama\*.scala           # embeddings/chat clients
+# Embed top vocab + neighbors
+`sbt "runMain edu.uic.msr.stats.TokenEmbedAndNeighbors"`
 
-&nbsp; main/scala/edu/uic/msr/rag/JobMain.scala              # Map/Reduce builder for Lucene shards
+# Evaluate similarity/analogies
+`sbt "runMain edu.uic.msr.stats.EvalEmbeddings"`
 
-&nbsp; main/scala/edu/uic/msr/rag/AskLucene.scala            # RAG Q\&A + guardrails + citations
+Quick verification:
+powershell:
+ - `gc out\stats\similarity.csv -TotalCount 5`
+-  `gc out\stats\analogy.csv -TotalCount 5`
+macOS/Linux:
+- `head -n 5 out/stats/similarity.csv`
+- `head -n 5 out/stats/analogy.csv`
 
-&nbsp; main/scala/edu/uic/msr/rag/LuceneSearchSmoke.scala    # quick kNN smoke
 
-&nbsp; main/scala/edu/uic/msr/stats/\*.scala                  # vocab, neighbors, evals
+Default outputs:
 
-src/test/scala/...                                      # Scalatest suite
+out/stats/vocab.csv
+out/stats/token_embeddings.csv
+out/stats/neighbors.csv
+out/stats/similarity.csv
+out/stats/analogy.csv
 
+Clean re-runs
+-------------
+If you want to regenerate CSVs from scratch:
+- `rm -rf out/stats`
+- `sbt "runMain edu.uic.msr.stats.VocabExport"`
+- `sbt "runMain edu.uic.msr.stats.TokenEmbedAndNeighbors"`
+- `sbt "runMain edu.uic.msr.stats.EvalEmbeddings"`
 
 
-conf/local.conf                                         # MR + stats mains (config below)
 
-src/main/resources/application.conf                     # AskLucene defaults (config below)
+To use a big corpus for stats, pass the override:
 
+PowerShell: 
+- `sbt -J-Dconfig.file=conf/big.conf "runMain edu.uic.msr.stats.VocabExport"`
 
-
-------------------------------------------------------------
-
-DATA PREPARATION (make a list of absolute PDF paths)
-
-------------------------------------------------------------
-
-PowerShell:
-
-&nbsp;   Get-ChildItem "E:\\msr\_data\\MSRCorpus" -Filter \*.pdf | % { $\_.FullName } |
-
-&nbsp;     Out-File -Encoding UTF8 C:\\tmp\\pdf\_list.txt
-
-&nbsp;   Copy-Item C:\\tmp\\pdf\_list.txt E:\\msr\_data\\msr\_pdfs.txt
-
-
-
-------------------------------------------------------------
-
-CONF: conf/local.conf  (used by MR + stats mains)
-
-------------------------------------------------------------
-
-\# paste EXACTLY this file content into conf/local.conf
-
-app { job = "extract-chunk-smoke" }
-
-
-
-io {
-
-&nbsp; pdfListFile = "E:/msr\_data/msr\_pdfs.txt"
-
-&nbsp; workDir     = "E:/msr\_data/artifacts"
-
-}
-
-
-
-embed {
-
-&nbsp; model    = "mxbai-embed-large"
-
-&nbsp; maxChars = 1000
-
-&nbsp; overlap  = 200
-
-&nbsp; batch    = 8
-
-}
-
-
-
-index {
-
-&nbsp; out     = "E:/msr\_data/artifacts/index.csv"
-
-&nbsp; maxDocs = 999999
-
-}
-
-
-
-search {
-
-&nbsp; query = "data loss bugs Android"
-
-&nbsp; k = 10
-
-}
-
-
-
-mr {
-
-&nbsp; inputList = "file:///C:/tmp/pdf\_list.txt"
-
-&nbsp; outputDir = "file:///C:/tmp/index\_shards"
-
-&nbsp; shards    = 2
-
-}
-
-
-
-\# Reducer copies final shard dirs here
-
-msr.output.dir = "file:///C:/tmp/index\_shards\_mr\_out"
-
-
-
-\# Stats output
-
-stats.outputDir = "C:/tmp/stats"
-
-stats.topVocab  = 5000
-
-stats.kNN       = 10
-
-
-
-------------------------------------------------------------
-
-CONF: src/main/resources/application.conf  (AskLucene)
-
-------------------------------------------------------------
-
-\# paste EXACTLY this file content into src/main/resources/application.conf
-
-embed.model  = "mxbai-embed-large"
-
-answer.model = "llama3.2:1b-instruct-q4\_K\_M"
-
-
-
-index.outRoot = "C:/tmp/index\_shards\_mr\_out"
-
-index.shards  = 2
-
-
-
-ask {
-
-&nbsp; k                 = 4
-
-&nbsp; perShardFetch     = 10
-
-&nbsp; minTopScore       = 0.28
-
-&nbsp; minKeywordOverlap = 1
-
-&nbsp; temperature       = 0.0
-
-&nbsp; numCtxTokens      = 2048
-
-&nbsp; refusal           = "I don't know based on the MSR corpus."
-
-}
-
-
-
-------------------------------------------------------------
-
-BUILD \& RUN (LOCAL)
-
-------------------------------------------------------------
-
-1\) Build Lucene shards (Map/Reduce; Hadoop LocalJobRunner)
-
-&nbsp;   sbt "runMain edu.uic.msr.rag.JobMain"
-
-&nbsp;  Output: C:/tmp/index\_shards\_mr\_out/index\_shard\_0, index\_shard\_1
-
-&nbsp;  If you see “Output directory … already exists”, delete C:/tmp/index\_shards\_mr\_out or change path in conf/local.conf.
-
-
-
-2\) Smoke test retrieval
-
-&nbsp;   sbt "runMain edu.uic.msr.rag.LuceneSearchSmoke android permissions"
-
-
-
-3\) Ask a question (strict RAG)
-
-&nbsp;   sbt "runMain edu.uic.msr.rag.AskLucene What do MSR papers report about Android permission misuse?"
-
-&nbsp;   sbt "runMain edu.uic.msr.rag.AskLucene What is Fortnite?"
-
-&nbsp;  In-corpus ⇒ answer + Sources like MSR.2019.00090.pdf#3
-
-&nbsp;  Out-of-corpus ⇒ “I don't know based on the MSR corpus.”
-
-
-
-4\) Generate stats artifacts
-
-&nbsp;   sbt "runMain edu.uic.msr.stats.VocabExport --conf conf/local.conf"
-
-&nbsp;   sbt "runMain edu.uic.msr.stats.TokenEmbedAndNeighbors --conf conf/local.conf"
-
-&nbsp;   sbt "runMain edu.uic.msr.stats.EvalEmbeddings --conf conf/local.conf"
-
-&nbsp;  Outputs in C:\\tmp\\stats:
-
-&nbsp;    - vocab.csv                (vocabulary + counts)
-
-&nbsp;    - token\_embeddings.csv     (token → vector)
-
-&nbsp;    - neighbors.csv            (kNN per token; cosine)
-
-&nbsp;    - similarity.csv, analogy.csv (simple embedding evals)
+macOS/Linux: 
+- `sbt -J-Dconfig.file=conf/big.conf "runMain edu.uic.msr.stats.VocabExport"`
 
 
 
@@ -276,45 +318,29 @@ BUILD \& RUN (LOCAL)
 
 TESTS
 
-------------------------------------------------------------
-
 Run:
 
-&nbsp;   sbt test
+`sbt clean compile test`
 
-Included (≥5):
+Included (7):
 
-&nbsp;   ChunkerSpec  (non-empty chunks, max length, overlap)
+ChunkerSpec - chunking invariants (non-empty, maxChars, overlap)
 
-&nbsp;   MathSpec     (cosine correctness)
+MathSpec -cosine similarity properties
 
-&nbsp;   JsonSpec     (mapper JSON shape)
+JsonSpec - mapper JSON record shape
 
-&nbsp;   PdfsSpec     (PDF text extraction)
+PdfsSpec - PDF text extraction sanity checks
 
-Optional:
+VocabExportSpec - vocab.csv shape and non-emptiness
 
-&nbsp;   AskLuceneSpec (assert out-of-corpus refusal)
+EvalEmbeddingsSpec - similarity.csv / analogy.csv sanity (headers, row count > 0)
+
+AskLuceneSpec (optional) - out-of-corpus refusal behavior
 
 
-
-------------------------------------------------------------
-
-DESIGN CHOICES
-
-------------------------------------------------------------
-
-\- Chunking: ~1000 chars, ~200 overlap (~10–25%)
-
-\- Embedding: mxbai-embed-large (1024-dim) for both index \& query
-
-\- Similarity: cosine (L2-normalized vectors)
-
-\- Index: Lucene HNSW vector field; 2 shards for MR + fan-out/fan-in queries
-
-\- Guardrails: refuse if topScore < 0.28 or keywordOverlap < 1; sanitize stray “\[n]” citations
-
-\- Generator: llama3.2:1b-instruct-q4\_K\_M, temperature = 0.0
+To run a single test:
+- `sbt "testOnly *ChunkerSpec"`
 
 
 ======================================================================
@@ -362,55 +388,6 @@ Models
 Ollama should be running on the master. Steps below will restart it if needed.
 
 
-======================================================================
-PER-CLUSTER QUICK START (RUN THESE EACH TIME YOU SPIN UP A NEW CLUSTER)
-======================================================================
-
-# 0) confirm user
-whoami
-
-# 1) ensure Ollama is up (restart if not) and list tags
-sudo systemctl is-active --quiet ollama || sudo systemctl restart ollama
-curl -sf http://127.0.0.1:11434/api/tags | head || echo "Ollama not responding"
-
-# 2) pull models on-demand (no-op if already present)
-ollama list | grep -q 'mxbai-embed-large' || ollama pull mxbai-embed-large
-ollama list | grep -q 'llama3.2:1b-instruct-q4_K_M' || ollama pull llama3.2:1b-instruct-q4_K_M
-
-# 3) fetch your fat JAR from S3 to the master
-aws s3 cp s3://cs-441-bucket/jars/msr-rag-hw1-assembly.jar /tmp/app.jar
-
-# 4) clear previous outputs (safe if not present)
-#    a) MR part-files on S3
-hadoop fs -rm -r -f s3a://cs-441-bucket/outputs/mr_partfiles_mr_out || true
-#    b) HDFS mirror target (not used by current run, but safe to clear)
-hdfs dfs -rm -r -f /msr/index_shards_mr_out || true
-
-# 5) run the MapReduce job on YARN (uses emr-dev.conf)
-yarn jar /tmp/app.jar edu.uic.msr.rag.JobMain --conf emr-dev.conf --mode yarn
-# Wait for: map 100% reduce 100% and "completed successfully"
-
-# 6) copy Lucene shards from S3 to local NVMe/EBS for fast search
-mkdir -p /tmp/index_shards_mr_out
-aws s3 cp --recursive \
-  s3://cs-441-bucket/outputs/mr_partfiles_mr_out/ \
-  /tmp/index_shards_mr_out/ \
-  --exclude "*" --include "index_shard_*/*"
-
-# 7) sanity check: segments_* exist in both shards
-ls -l /tmp/index_shards_mr_out/index_shard_0
-ls -l /tmp/index_shards_mr_out/index_shard_1
-
-# 8) ask a question (use Java 11 explicitly)
-JAVA11=/usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java
-$JAVA11 \
-  -Dindex.outRoot=/tmp/index_shards_mr_out \
-  -Dindex.shards=2 \
-  -Dembed.model=mxbai-embed-large \
-  -Danswer.model=llama3.2:1b-instruct-q4_K_M \
-  -cp /tmp/app.jar edu.uic.msr.rag.AskLucene \
-  "what does section 3 say about inconsistency?"
-
 
 ======================================================================
 WHAT EACH STEP DOES
@@ -444,84 +421,6 @@ WHAT EACH STEP DOES
 
 
 ======================================================================
-OPTIONAL: LUCENE SMOKE (NON-MR MAIN)
-======================================================================
-Quick shard probe using the smoke main (also Java 11):
-
-JAVA11=/usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java
-$JAVA11 -cp /tmp/app.jar edu.uic.msr.rag.LuceneSearchSmoke \
-  --model mxbai-embed-large \
-  --indexRoot /tmp/index_shards_mr_out \
-  "what does section 3 say about inconsistency?"
-
-
-======================================================================
-TROUBLESHOOTING
-======================================================================
-Ollama not responding
-- sudo systemctl restart ollama
-- curl -sf http://127.0.0.1:11434/api/tags | head
-- If remote host/port: export OLLAMA_HOST=http://HOST:PORT
-
-“model not found”
-- ollama pull mxbai-embed-large
-- ollama pull llama3.2:1b-instruct-q4_K_M
-
-Java UnsupportedClassVersionError (class file version 55.0)
-- You ran with Java 8. Use Java 11 explicitly:
-  /usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java
-
-AskLucene: IndexNotFoundException (no segments* file)
-- Local shard folder empty or wrong. Re-copy:
-  mkdir -p /tmp/index_shards_mr_out
-  aws s3 cp --recursive \
-    s3://cs-441-bucket/outputs/mr_partfiles_mr_out/ \
-    /tmp/index_shards_mr_out/ \
-    --exclude "*" --include "index_shard_*/*"
-- Then ls -l the shard directories to ensure segments_* exist.
-
-YARN job succeeded but local shards missing
-- Reducers write to S3. You must copy index_shard_* down locally (Step 6).
-
-EMR clone failed due to EC2 vCPU quota on c5.2xlarge
-- Use a smaller instance family/size or request a vCPU quota increase.
-
-Slow query or timeouts
-- Ensure shards are local (/tmp/index_shards_mr_out), not S3 paths.
-- Keep shard count and corpus size modest on CPU-only nodes.
-
-
-======================================================================
-RE-RUN CHECKLIST
-======================================================================
-1) SSH to EMR master as “hadoop”
-2) Ensure Ollama and models:
-   sudo systemctl is-active --quiet ollama || sudo systemctl restart ollama
-   curl -sf http://127.0.0.1:11434/api/tags | head
-   ollama list | grep -q 'mxbai-embed-large' || ollama pull mxbai-embed-large
-   ollama list | grep -q 'llama3.2:1b-instruct-q4_K_M' || ollama pull llama3.2:1b-instruct-q4_K_M
-3) Update JAR:
-   aws s3 cp s3://cs-441-bucket/jars/msr-rag-hw1-assembly.jar /tmp/app.jar
-4) Clean old outputs:
-   hadoop fs -rm -r -f s3a://cs-441-bucket/outputs/mr_partfiles_mr_out || true
-   hdfs dfs -rm -r -f /msr/index_shards_mr_out || true
-5) Run job:
-   yarn jar /tmp/app.jar edu.uic.msr.rag.JobMain --conf emr-dev.conf --mode yarn
-6) Copy shards local:
-   mkdir -p /tmp/index_shards_mr_out
-   aws s3 cp --recursive \
-     s3://cs-441-bucket/outputs/mr_partfiles_mr_out/ \
-     /tmp/index_shards_mr_out/ \
-     --exclude "*" --include "index_shard_*/*"
-7) Ask:
-   JAVA11=/usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java
-   $JAVA11 -Dindex.outRoot=/tmp/index_shards_mr_out -Dindex.shards=2 \
-     -Dembed.model=mxbai-embed-large -Danswer.model=llama3.2:1b-instruct-q4_K_M \
-     -cp /tmp/app.jar edu.uic.msr.rag.AskLucene \
-     "what does section 3 say about inconsistency?"
-
-
-======================================================================
 VIDEO CHECKLIST (WHAT TO SHOW)
 ======================================================================
 - Intro with your name (camera briefly on)
@@ -534,330 +433,34 @@ VIDEO CHECKLIST (WHAT TO SHOW)
 
 
 
+# AWS Cluster Usage Steps:
 
-======================================================================
-README – CSV ARTIFACTS (PLAIN TEXT)
-======================================================================
 
-Purpose
--------
-This document explains how to generate all CSV artifacts produced by the project:
-vocab.csv, token_embeddings.csv, neighbors.csv, similarity.csv, and analogy.csv.
-It also includes optional smoke checks and verification tips. Everything below is
-plain text for easy copy/paste.
+1)   sudo systemctl is-active --quiet ollama || sudo systemctl restart ollama
+curl -sf http://127.0.0.1:11434/api/tags | head || echo "Ollama not responding"
 
-Prerequisites
--------------
-- Java 11 or newer (Java 11 recommended)
-- sbt installed and on PATH
-- Ollama running locally (only needed for embedding steps)
-- A text file containing absolute PDF paths, one per line (example: conf/pdf_list.txt)
+2)  ollama list | grep -q 'mxbai-embed-large' || ollama pull mxbai-embed-large
+ollama list | grep -q 'llama3.2:1b-instruct-q4_K_M' || ollama pull llama3.2:1b-instruct-q4_K_M
 
-Environment checks (Ollama)
----------------------------
-If Ollama is not already running or the model is missing:
-  curl -sf http://127.0.0.1:11434/api/tags | head
-  ollama list | grep -q mxbai-embed-large || ollama pull mxbai-embed-large
+3)) aws s3 cp s3://cs-441-bucket/jars/msr-rag-hw1-assembly.jar /tmp/app.jar
 
-If running Ollama on another host/port:
-  export OLLAMA_HOST=http://HOST:PORT
+4) hadoop fs -rm -r -f s3a://cs-441-bucket/outputs/mr_partfiles_mr_out || true
 
+# Lucene shard target on HDFS (what your reducer writes to)
+hdfs dfs -rm -r -f /msr/index_shards_mr_out || true
 
-Configuration
--------------
-Create a HOCON file (example: conf/local.conf). Adjust paths for your machine.
+5) yarn jar /tmp/app.jar edu.uic.msr.rag.JobMain --conf emr-dev.conf --mode yarn
 
-io {
-  pdfListFile = "PATH/TO/conf/pdf_list.txt"
-  workDir     = "tmp/work"
-}
+6) mkdir -p /mnt/tmp/index_shards_mr_out
+aws s3 cp --recursive \
+  s3://cs-441-bucket/outputs/mr_partfiles_mr_out/ \
+  /mnt/tmp/index_shards_mr_out/ \
+  --exclude "" --include "indexshard/*"
 
-embed {
-  model    = "mxbai-embed-large"
-  batch    = 64
-  maxChars = 800
-  overlap  = 160
-}
-
-stats {
-  outputDir = "tmp/stats"
-  topVocab  = 5000
-  kNN       = 10
-}
-
-Notes:
-- io.pdfListFile must point to a text file with absolute paths to PDFs (one per line).
-- stats.outputDir is where all CSVs in Steps 1–3 will be written.
-- Paths with backslashes (Windows) may require escaping; prefer absolute POSIX-style paths
-  when possible.
-
-
-STEP 1) Build vocabulary (vocab.csv)
-------------------------------------
-Description:
-Extract text from PDFs, chunk, tokenize, count frequencies, and write vocab.csv.
-
-Command:
-  sbt "runMain edu.uic.msr.stats.VocabExport --conf conf/local.conf"
-
-Output (in stats.outputDir):
-- vocab.csv
-  Header: token,token_id,freq
-
-Quick verification:
-  head -n 5 tmp/stats/vocab.csv
-  wc -l tmp/stats/vocab.csv      (should be > 1)
-
-OR
-gc C:\tmp\stats\vocab.csv 
- (Get-Content C:\tmp\stats\vocab.csv | Measure-Object -Line).Lines
-
-
-STEP 2) Embed tokens and compute neighbors (token_embeddings.csv, neighbors.csv)
---------------------------------------------------------------------------------
-Description:
-Read the first N tokens from vocab.csv (N = stats.topVocab), embed with Ollama,
-write token vectors, and brute-force k nearest neighbors.
-
-Ensure Ollama model exists:
-  ollama list | grep -q mxbai-embed-large || ollama pull mxbai-embed-large
-
-Command:
-  sbt "runMain edu.uic.msr.stats.TokenEmbedAndNeighbors --conf conf/local.conf"
-
-Outputs (in stats.outputDir):
-- token_embeddings.csv   (header: token,d0,d1,...,d{dim-1}; rows are L2-normalized)
-- neighbors.csv          (header: token,neighbor,cosine)
-
-Quick verification:
-  gc tmp\stats\token_embeddings.csv -TotalCount 3
-  gc tmp\stats\neighbors.csv -TotalCount 5
-
-Health checks:
-- token_embeddings.csv should have at least 2 columns (token + d0)
-- All rows should have the same number of dimensions
-- neighbors.csv should list kNN rows per token (k = stats.kNN)
-
-
-STEP 3) Evaluate similarity and analogies (similarity.csv, analogy.csv)
------------------------------------------------------------------------
-Description:
-Load token_embeddings.csv and write simple evaluation CSVs for word similarity
-and word analogies.
-
-Command:
-  sbt "runMain edu.uic.msr.stats.EvalEmbeddings --conf conf/local.conf"
-
-Outputs (in stats.outputDir):
-- similarity.csv   (header: w1,w2,cosine)
-- analogy.csv      (header: a,b,c,predicted,cosine)
-
-Quick verification:
- gc tmp\stats\similarity.csv -TotalCount 5
- gc tmp\stats\analogy.csv -TotalCount 5
-
-
-Optional smoke checks
----------------------
-A) Extract and chunk counts (no Ollama required). Writes a tiny CSV under io.workDir:
-  sbt "runMain edu.uic.msr.Driver --conf conf/local.conf"
-Output:
-  tmp/work/chunk_counts.csv
-
-B) Embed a few chunks from the first PDF to verify Ollama access:
-  sbt "runMain edu.uic.msr.EmbedSmoke --conf conf/local.conf"
-Expected:
-- Logs showing vectors count, dimension, elapsed time
-- A line like: OK: vectors=... dim=... first5=[...]
-
-
-Expected file layout (example)
-------------------------------
-conf/
-  local.conf
-  pdf_list.txt              (absolute PDF paths)
-
-tmp/
-  work/
-    chunk_counts.csv
-  stats/
-    vocab.csv
-    token_embeddings.csv
-    neighbors.csv
-    similarity.csv
-    analogy.csv
-
-
-------------------------------------------------------------
-TROUBLESHOOTING
-------------------------------------------------------------
-
-- Port in use / multiple ollama: ensure single server on 127.0.0.1:11434
-- "model not found": ollama pull <model>
-- token_embeddings.csv empty or dimension is 0:
-    * Ensure mxbai-embed-large is pulled and responding.
-    * Confirm stats.topVocab > 0 and tmp/stats/vocab.csv exists and is non-empty.
-- vocab.csv very small:
-    * io.pdfListFile might be wrong or PDFs have no extractable text.
-    * Image-only PDFs require OCR (not covered).
-- Inconsistent dimensionality in token_embeddings.csv:
-    * Remove partially written files and rerun Step 2.
-    * Ensure the same model is used across the entire run.
-- Memory pressure during Step 2 (large topVocab):
-    * Lower stats.topVocab (e.g., 2000) and rerun.
-    * Increase JVM heap via SBT_OPTS:
-        export SBT_OPTS="-Xmx4g"
-
-
-Clean re-runs
--------------
-If you want to regenerate CSVs from scratch:
-  rm -rf tmp/stats
-  mkdir -p tmp/stats
-  sbt "runMain edu.uic.msr.stats.VocabExport --conf conf/local.conf"
-  sbt "runMain edu.uic.msr.stats.TokenEmbedAndNeighbors --conf conf/local.conf"
-  sbt "runMain edu.uic.msr.stats.EvalEmbeddings --conf conf/local.conf"
-
-
-FAQ
----
-Q: Do I need Ollama for Step 1?
-A: No. Step 1 only extracts/chunks/tokenizes/counts.
-
-Q: Where are the CSVs written?
-A: To stats.outputDir in your conf (default example: tmp/stats).
-
-Q: Can I point to a subset of PDFs?
-A: Yes — place only those absolute paths in conf/pdf_list.txt.
-
-Q: What if I change the embedding model?
-A: Re-run Step 2 (and Step 3). Embedding vectors differ across models.
-
-
-======================================================================
- BUILD, TEST, AND RUN PORTION
-======================================================================
-
-PURPOSE
-This document explains how to build, test, and run the project from the command line
-using sbt. It also clarifies what “run” executes, how to switch to other mains,
-and a few platform-specific tips (Windows/macOS/Linux).
-
-PREREQUISITES
-- Java 11 or newer (Java 11 recommended)
-- sbt installed and on PATH
-- (Optional) Ollama running locally if you plan to embed text:
-  curl -sf http://127.0.0.1:11434/api/tags
-  ollama list | grep -q mxbai-embed-large || ollama pull mxbai-embed-large
-
-BUILD
-sbt clean compile
-This compiles all sources under src/main/scala and prepares them for running.
-
-TEST
-sbt clean compile test
-This compiles both main and test sources and runs the ScalaTest suite. The test
-suite includes:
-- ChunkerSpec   (chunking invariants)
-- JsonSpec      (mapper JSON shape)
-- MathSpec      (cosine properties)
-- PdfsSpec      (simple PDF extraction)
-- VocabExportSpec (vocabulary CSV shape)
-- EvalEmbeddingsSpec (sanity checks for similarity/analogy CSVs)
-
-If a test fails on Windows due to temporary-path parsing (HOCON), ensure paths are
-quoted or use forward slashes. The test suite in this repo already accounts for this.
-
-DEFAULT “RUN”
-sbt clean compile run
-By default, “run” invokes the simple smoke-driver:
-- edu.uic.msr.Driver
-This is an extraction + chunk-count smoke test (no EMR needed).
-It prints a small report and writes:
-  <io.workDir>/chunk_counts.csv
-where io.workDir is configured in your conf (see conf/local.conf example).
-Use this to verify your toolchain without requiring a full cluster.
-
-RUNNING OTHER MAINS
-Use runMain to call a specific entry point:
-
-1) Local CSV artifacts (no EMR required)
-   a) Build vocabulary (vocab.csv)
-      sbt "runMain edu.uic.msr.stats.VocabExport --conf conf/local.conf"
-
-   b) Embed tokens and compute neighbors (token_embeddings.csv, neighbors.csv)
-      sbt "runMain edu.uic.msr.stats.TokenEmbedAndNeighbors --conf conf/local.conf"
-
-   c) Evaluate similarity & analogies (similarity.csv, analogy.csv)
-      sbt "runMain edu.uic.msr.stats.EvalEmbeddings --conf conf/local.conf"
-
-   d) Optional quick embedding smoke
-      sbt "runMain edu.uic.msr.EmbedSmoke --conf conf/local.conf"
-
-2) Lucene Ask (local, requires shards already built & copied locally)
-   Example (Java 11 binary shown explicitly; you may also use sbt runMain):
-   /usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java \
-     -Dindex.outRoot=/tmp/index_shards_mr_out \
-     -Dindex.shards=2 \
-     -Dembed.model=mxbai-embed-large \
-     -Danswer.model=llama3.2:1b-instruct-q4_K_M \
-     -cp target/scala-3.5.1/msr-rag-hw1_3-0.1.0-SNAPSHOT.jar edu.uic.msr.rag.AskLucene \
-     "what does section 3 say about inconsistency?"
-
-3) EMR Map/Reduce (cluster)
-   You do NOT run the MR job with plain “sbt run” on your laptop. Instead, on EMR:
-   yarn jar /path/to/app.jar edu.uic.msr.rag.JobMain --conf emr-dev.conf --mode yarn
-   (See your cluster README for the exact sequence of AWS commands and model checks.)
-
-CONFIGURATION
-We use Typesafe Config (HOCON). A minimal example conf/local.conf:
-
-io {
-  pdfListFile = "PATH/TO/conf/pdf_list.txt"  # absolute PDF paths, one per line
-  workDir     = "tmp/work"
-}
-embed {
-  model    = "mxbai-embed-large"
-  batch    = 64
-  maxChars = 800
-  overlap  = 160
-}
-stats {
-  outputDir = "tmp/stats"
-  topVocab  = 5000
-  kNN       = 10
-}
-
-- On Windows, prefer forward slashes in HOCON values or quote paths: "C:/abs/path".
-- For Ollama on a non-default host/port:
-  set OLLAMA_HOST=http://127.0.0.1:11434   (PowerShell: $env:OLLAMA_HOST="http://...")
-
-WHAT “RUN” IS (AND ISN’T)
-- “run” is a local smoke check (Driver) to satisfy “sbt clean compile run” requirement.
-- It does NOT require EMR/YARN.
-- It does NOT fetch embeddings or call the LLM; it only extracts/chunks and writes a tiny CSV.
-
-PLATFORM NOTES
-Windows (PowerShell) lacks head/wc. Use:
-Get-Content tmp\stats\vocab.csv -TotalCount 5
-(Get-Content tmp\stats\vocab.csv).Count
-
-Linux/macOS:
-head -n 5 tmp/stats/vocab.csv
-wc -l tmp/stats/vocab.csv
-
-TROUBLESHOOTING
-- Classpath issues: run “sbt clean” and retry.
-- Config parse errors on Windows: ensure paths in .conf are quoted or use forward slashes.
-- Ollama errors: confirm the model is pulled; export OLLAMA_HOST if not localhost.
-- YARN errors locally: “JobMain” is for cluster; use “Driver” locally.
-
-DONE
-If “sbt clean compile test” succeeds and “sbt clean compile run” produces chunk_counts.csv,
-your local toolchain is good. Use runMain targets above for CSV artifacts or cluster jobs.
-
-
-------------------------------------------------------------
-LICENSE
-------------------------------------------------------------
-MIT (or your chosen license)
+7) /usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java \
+  -Dindex.outRoot=/mnt/tmp/index_shards_mr_out \
+  -Dindex.shards=2 \
+  -Dembed.model=mxbai-embed-large \
+  -Danswer.model=llama3.2:1b-instruct-q4_K_M \
+  -cp /tmp/app.jar edu.uic.msr.rag.AskLucene \
+  "what does section 3 say about inconsistency?"

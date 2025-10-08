@@ -5,7 +5,8 @@ import sbtassembly.PathList
 
 ThisBuild / scalaVersion  := "3.5.1"
 ThisBuild / organization  := "edu.uic"
-Compile / run / mainClass := Some("edu.uic.msr.Driver")
+Compile / mainClass := Some("edu.uic.msr.RunAll")
+ThisBuild / fork := true
 
 lazy val root = (project in file("."))
   .settings(

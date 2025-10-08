@@ -11,9 +11,23 @@ import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.font.PDType1Font
+import org.slf4j.LoggerFactory
 
+/**
+ * Driver:
+ *  - Loads config, optionally generates tiny demo PDFs, reads list of PDF paths,
+ *    extracts text, chunks, prints a small report, and writes a CSV summary.
+ *
+ * Logging:
+ *  - INFO: config paths, demo creation, counts, final CSV path
+ *  - WARN: per-file extraction failures
+ *  - DEBUG: chunk/text sizes per doc (kept to printlns for your original UX)
+ */
 object Driver {
 
+  private val log = LoggerFactory.getLogger(getClass)
+
+  /** Create a tiny single-page PDF containing the provided text. */
   private def makeTinyPdf(path: java.nio.file.Path, text: String): Unit = {
     val doc = new PDDocument()
     val page = new PDPage()
@@ -39,6 +53,8 @@ object Driver {
 
     val demoMode = args.contains("--demo")
 
+    log.info("Driver: conf='{}' demoMode={}", confPath, Boolean.box(demoMode))
+
     val cfg      = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
     val listFile = cfg.getString("io.pdfListFile")
     val workDir  = cfg.getString("io.workDir")
@@ -57,6 +73,7 @@ object Driver {
         Files.write(lst, content.getBytes(StandardCharsets.UTF_8),
           StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
         println(s"[Driver] --demo mode: created ${p1} and ${p2}")
+        log.info("Driver: demo artifacts created at {}", demoRoot.toAbsolutePath.toString)
         lst.toString
       } else {
         listFile
@@ -87,6 +104,7 @@ object Driver {
         sys.exit(1)
       }
 
+    log.info("Driver: found {} PDF path(s)", Int.box(pdfs.size))
     println(s"Found ${pdfs.size} PDFs. Extracting…")
 
     // write a tiny CSV artifact with char + chunk counts
@@ -111,10 +129,12 @@ object Driver {
           val line = s""""$doc",$chars,$chunks,"${sample.replace("\"","'")}"\n"""
           Files.write(csvPath, line.getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND)
         case Left(e) =>
+          log.warn("Driver: failed to process {}: {}", p, e.getMessage)
           println(s"[WARN] failed to process $p: ${e.getMessage}")
       }
     }
 
+    log.info("Driver: CSV written → {}", csvPath.toAbsolutePath.toString)
     println(s"✅ extract + chunk smoke test complete → ${csvPath.toAbsolutePath}")
     if (demoMode) println("[Driver] Tip: now run your real config without --demo against your corpus.")
   }

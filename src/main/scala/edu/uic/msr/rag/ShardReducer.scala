@@ -14,13 +14,20 @@ import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets
 import scala.jdk.CollectionConverters._
 
-/** For each shard key, writes a Lucene index locally, then copies to FS:
- *   <msr.output.dir>/index_shard_<N>
- * Set msr.output.dir in your conf, e.g.
- *   - hdfs:///user/hadoop/index_shards_mr_out
- *   - s3a://your-bucket/outputs/index_shards_mr_out
+/**
+ * ShardReducer:
+ *  - For each shard key (partition), builds a Lucene index locally, then copies it to the target FS:
+ *      <msr.output.dir>/index_shard_<N>
+ *  - Input values: JSON lines produced by mappers (doc_id, chunk_id, text, hash, ts, vec)
+ *  - Output: emits (shard_N, <dest path>) as a marker line
  *
- * IMPORTANT: we resolve the FileSystem from the *destination Path* so either HDFS or S3A works.
+ * Logging:
+ *  - INFO: where the local index is built, copy start/end
+ *  - WARN: malformed JSON lines, best-effort cleanup failures
+ *  - ERROR: failed copy
+ *
+ * Note:
+ *  - Destination FileSystem is resolved from the *destination Path*, so HDFS and S3A both work.
  */
 class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
   private val log   = LoggerFactory.getLogger(getClass)
@@ -40,7 +47,7 @@ class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
       .setOpenMode(IndexWriterConfig.OpenMode.CREATE) // always create a fresh shard
     val iw       = new IndexWriter(dir, iwc)
 
-    log.info(s"Reducer[$shardId]: writing Lucene index locally at $localDir")
+    log.info("Reducer[{}]: writing Lucene index locally at {}", Int.box(shardId), localDir.toString)
 
     try {
       // Iterate the JSON lines produced by the mappers
@@ -48,7 +55,7 @@ class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
         val line = t.toString
         parse(line) match {
           case Left(err) =>
-            log.warn(s"Reducer[$shardId]: bad JSON: $err // line=$line")
+            log.warn("Reducer[{}]: bad JSON: {} // line={}", Int.box(shardId), err, line)
           case Right(js) =>
             val c     = js.hcursor
             val docId = c.get[String]("doc_id").getOrElse("NA")
@@ -78,17 +85,17 @@ class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
 
     // ---- 2) Copy the local directory to the target FS: <outRoot>/index_shard_<shardId> ----
     val destRoot = new Path(outRoot)
-    val outFs: FileSystem = destRoot.getFileSystem(conf)  // <-- the crucial fix
+    val outFs: FileSystem = destRoot.getFileSystem(conf)  // resolve FS from the destination path
     val destDir  = new Path(destRoot, s"index_shard_$shardId")
 
     if (!outFs.exists(destRoot)) outFs.mkdirs(destRoot)
 
-    log.info(s"Reducer[$shardId]: copying local index to $destDir")
+    log.info("Reducer[{}]: copying local index to {}", Int.box(shardId), destDir.toString)
     val ok = FileUtil.copy(localDir.toFile, outFs, destDir, true, conf)
     if (!ok) {
-      log.error(s"Reducer[$shardId]: FAILED to copy $localDir -> $destDir")
+      log.error("Reducer[{}]: FAILED to copy {} -> {}", Int.box(shardId), localDir.toString, destDir.toString)
     } else {
-      log.info(s"Reducer[$shardId]: copied index to $destDir")
+      log.info("Reducer[{}]: copied index to {}", Int.box(shardId), destDir.toString)
     }
 
     // ---- 3) Emit a marker line into MR part files (handy for sanity checks) ----
@@ -98,12 +105,12 @@ class ShardReducer extends Reducer[IntWritable, Text, Text, Text] {
 
     // ---- 4) Best-effort cleanup of local temp dir ----
     try {
-      // Recursively delete the temp dir
       Files.walk(localDir)
         .sorted(java.util.Comparator.reverseOrder())
         .forEach(p => try Files.deleteIfExists(p) catch { case _: Throwable => () })
     } catch {
-      case e: Throwable => log.warn(s"Reducer[$shardId]: temp cleanup failed for $localDir: ${e.getMessage}")
+      case e: Throwable =>
+        log.warn("Reducer[{}]: temp cleanup failed for {}: {}", Int.box(shardId), localDir.toString, e.getMessage)
     }
   }
 }

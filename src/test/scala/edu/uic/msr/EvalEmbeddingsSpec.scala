@@ -4,8 +4,16 @@ import com.typesafe.config.ConfigFactory
 import java.nio.file.{Files, Paths, Path, StandardOpenOption}
 import scala.jdk.CollectionConverters._
 import scala.util.Try
+import org.slf4j.LoggerFactory
 
+/**
+ * EvalEmbeddings (spec/CLI variant):
+ *  - Reads token_embeddings.csv and writes similarity.csv and analogy.csv
+ *  - Logs are INFO-light; stdout/exit behavior preserved for tests.
+ */
 object EvalEmbeddings {
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   // ---- small, fast math helpers (vectors are expected to be same dim) ----
   private def dot(a: Array[Float], b: Array[Float]): Double = {
@@ -49,12 +57,14 @@ object EvalEmbeddings {
           Paths.get(p.replace("\\", "/"))
         case None =>
           val confPath = argAfter("--conf", args).getOrElse("conf/local.conf")
+          log.info("EvalEmbeddings: using conf='{}'", confPath)
           val cfg = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
           Paths.get(cfg.getString("stats.outputDir").replace("\\", "/"))
       }
     }
 
     Files.createDirectories(outDir)
+    log.info("EvalEmbeddings: outDir='{}'", outDir.toAbsolutePath.toString)
 
     // 2) Load token embeddings
     val embFile = outDir.resolve("token_embeddings.csv")
@@ -81,6 +91,7 @@ object EvalEmbeddings {
       System.err.println(s"[ERROR] token_embeddings.csv reports zero dimensions")
       sys.exit(5)
     }
+    log.info("Embeddings header OK: dim={}", Int.box(dim))
 
     val embs: Map[String, Array[Float]] = lines.tail.flatMap { ln =>
       val cols = ln.split(",", -1) // keep empty fields if any
@@ -103,6 +114,7 @@ object EvalEmbeddings {
       System.err.println("[ERROR] No usable rows found in token_embeddings.csv")
       sys.exit(6)
     }
+    log.info("Loaded embeddings: {}", Int.box(embs.size))
 
     // 3) Word Similarity — only keep pairs that exist in the loaded vocab
     val similarPairs = Vector(
@@ -112,6 +124,7 @@ object EvalEmbeddings {
       "repository" -> "repo",
       "issue" -> "bug"
     ).filter { case (a, b) => embs.contains(a) && embs.contains(b) }
+    log.debug("Similarity pairs kept: {}", Int.box(similarPairs.size))
 
     val simCsv = new StringBuilder("w1,w2,cosine\n")
     similarPairs.foreach { case (a, b) =>
@@ -130,6 +143,7 @@ object EvalEmbeddings {
       ("issue", "bug", "patch", "commit"),
       ("project", "repository", "paper", "conference")
     ).filter { case (a, b, c, _) => embs.contains(a) && embs.contains(b) && embs.contains(c) }
+    log.debug("Analogy triplets kept: {}", Int.box(analogies.size))
 
     val toks = embs.keys.toVector
     val vecs = toks.map(embs).toArray

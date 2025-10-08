@@ -5,8 +5,20 @@ import scala.io.Source
 import java.nio.file.{Files, Paths, StandardOpenOption}
 import edu.uic.msr.pdf.Pdfs
 import edu.uic.msr.chunk.Chunker
+import org.slf4j.LoggerFactory
 
+/**
+ * VocabExport:
+ *  - Reads a list of PDF paths (io.pdfListFile), extracts text, chunks, tokenizes, and counts token frequencies.
+ *  - Writes stats.outputDir/vocab.csv with columns: token,token_id,freq
+ *
+ * Logging:
+ *  - INFO: config in/out paths, number of PDFs, final vocab size
+ *  - DEBUG: per-PDF token counts (omitted to avoid noise, but easy to add)
+ */
 object VocabExport {
+  private val log = LoggerFactory.getLogger(getClass)
+
   private def normalize(s: String): String = s.toLowerCase
   private val tokenRx = """[a-zA-Z][a-zA-Z0-9_\-]+""".r
 
@@ -18,8 +30,11 @@ object VocabExport {
     val outDir     = Paths.get(cfg.getString("stats.outputDir"))
     Files.createDirectories(outDir)
 
+    log.info("VocabExport: conf='{}', list='{}', outDir='{}'", confPath, listPath, outDir.toString)
+
     // 1) read a manageable slice of PDFs (or all—your call)
     val pdfs = Source.fromFile(listPath).getLines().map(_.replace("\uFEFF","").trim).filter(_.nonEmpty).toVector
+    log.info("VocabExport: loaded {} input PDF path(s)", Int.box(pdfs.size))
 
     // 2) extract + chunk + tokenize + count
     val counts = scala.collection.mutable.HashMap.empty[String, Long].withDefaultValue(0L)
@@ -42,6 +57,8 @@ object VocabExport {
     }
     val out = outDir.resolve("vocab.csv")
     Files.write(out, csv.result().getBytes("UTF-8"), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+
+    log.info("VocabExport: wrote {} rows → {}", Int.box(vocab.size), out.toAbsolutePath.toString)
     println(s"Wrote ${vocab.size} rows → ${out.toAbsolutePath}")
   }
 }

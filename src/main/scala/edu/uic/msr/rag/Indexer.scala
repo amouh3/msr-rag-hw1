@@ -12,8 +12,24 @@ import edu.uic.msr.chunk.Chunker
 
 import io.circe.syntax._
 import io.circe.Json
+import org.slf4j.LoggerFactory
 
+/**
+ * Indexer:
+ *  - Walks files/dirs, reads .pdf/.txt, sanitizes text, chunks, embeds, and writes JSONL lines.
+ *  - Embedding uses Ollama; chunking prefers your project Chunker with a naive fallback.
+ *
+ * Logging levels:
+ *  - INFO: start/end, file counts, produced chunk counts
+ *  - DEBUG: per-file steps (read/chunk/embed), lengths
+ *  - ERROR: embedding failures per chunk
+ *
+ * Notes:
+ *  - Behavior unchanged; only logging/comments added.
+ */
 object Indexer {
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   // ---- CONFIG ----
   private val EmbedModel   = "mxbai-embed-large" // you already have this
@@ -111,10 +127,14 @@ object Indexer {
     val outDir    = Paths.get(outPath).getParent
     if (outDir != null && !Files.exists(outDir)) Files.createDirectories(outDir)
 
+    log.info("Indexer: input={}, outPath={}", input.getAbsolutePath, outPath)
+
     val files = if (input.isDirectory) allFiles(input).filter(f => {
       val n = f.getName.toLowerCase
       n.endsWith(".pdf") || n.endsWith(".txt")
     }) else Vector(input)
+
+    log.info("Indexer: discovered {} candidate file(s)", Int.box(files.size))
 
     if (files.isEmpty) {
       System.err.println(s"No .pdf or .txt files found under: ${input.getAbsolutePath}")
@@ -125,14 +145,20 @@ object Indexer {
     try {
       var count = 0
       files.foreach { f =>
+        log.debug("Indexer[file]: reading {}", f.getName)
         val raw = readTextFromPath(f)
         val text = sanitize(raw)
+        log.debug("Indexer[file]: sanitized chars={}", Int.box(text.length))
+
         if (text.nonEmpty) {
           val chunks = chunkWithProjectChunker(text)
+          log.debug("Indexer[file]: produced {} chunk(s) before filtering", Int.box(chunks.size))
+
           chunks.foreach { ch =>
             val chunk = sanitize(ch)
             if (chunk.length >= MinCharsPerChunk && !looksCorrupted(chunk)) {
               // Embed via Ollama
+              log.trace("Indexer[chunk]: embedding len={}", Int.box(chunk.length))
               OllamaClient.embed(EmbedModel, chunk) match {
                 case Right(vec) =>
                   val id = s"${f.getName}#${sha256(chunk).take(12)}"
@@ -145,12 +171,16 @@ object Indexer {
                   pw.println(json.noSpaces)
                   count += 1
                 case Left(err) =>
+                  log.error("Indexer[chunk]: EMBED FAIL for {}: {}", f.getName, err.take(200))
                   System.err.println(s"[EMBED FAIL] ${f.getName}: ${err.take(200)}")
               }
             }
           }
+        } else {
+          log.warn("Indexer[file]: empty text after sanitize: {}", f.getName)
         }
       }
+      log.info("Indexer: wrote {} chunk(s) → {}", Int.box(count), outPath)
       println(s"Indexed $count chunks → $outPath")
     } finally {
       pw.flush()

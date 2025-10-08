@@ -44,6 +44,7 @@ object JobMain {
     val base = ConfigFactory.load() // application.conf (defaults)
 
     val name = confNameOrPathOpt.getOrElse("local.conf") // default if none passed
+    log.info("JobMain.loadConfig: using name='{}'", name)
 
     // Try classpath resources first (next to application.conf)
     val cl = Thread.currentThread().getContextClassLoader
@@ -90,13 +91,15 @@ object JobMain {
     // Single source of truth for MR output root (must NOT exist before run)
     val outMr  = s"${outDir}_mr_out"
 
-    log.info(s"JobMain: input=$input  output=$outMr  shards=$shards  model=$model")
+    log.info(s"JobMain: input=$input  output=$outMr  shards=$shards  model=$model  (maxChars=$maxCh, overlap=$ovl, batch=$batch)")
 
     // ---- Hadoop config (local | yarn) ----
     val mode =
       if (args.contains("--mode")) args(args.indexOf("--mode") + 1)
       else if (cfg.hasPath("mr.mode")) cfg.getString("mr.mode")
       else "yarn" // default to "real Hadoop/EMR"
+
+    log.info("JobMain: execution mode={}", mode)
 
     val hConf = new Configuration() // loads core-site.xml/hdfs-site.xml/yarn-site.xml if present
 
@@ -135,9 +138,13 @@ object JobMain {
     hConf.set("msr.output.dir", outMr)
 
     // Optional: pass Ollama host (useful when mappers must hit an EC2 IP/DNS)
-    sys.env.get("OLLAMA_HOST").foreach(h => hConf.set("msr.ollama.host", h))
+    sys.env.get("OLLAMA_HOST").foreach { h =>
+      log.info("JobMain: propagating OLLAMA_HOST={}", h)
+      hConf.set("msr.ollama.host", h)
+    }
 
     // ---- Build job ----
+    log.info("JobMain: constructing Hadoop Job")
     val job = Job.getInstance(hConf, s"MSR-RAG Index (shards=$shards)")
     job.setJarByClass(classOf[RagMapper]) // ensures all classes are on the job jar
 
@@ -161,7 +168,9 @@ object JobMain {
     job.setOutputFormatClass(classOf[TextOutputFormat[Text, Text]])
     FileOutputFormat.setOutputPath(job, new Path(outMr)) // MUST NOT exist before run
 
+    log.info("JobMain: submitting job …")
     val ok = job.waitForCompletion(true)
+    log.info("JobMain: job finished with status ok={}", Boolean.box(ok))
     if (!ok) sys.exit(1)
   }
 }

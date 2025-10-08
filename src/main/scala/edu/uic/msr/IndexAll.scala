@@ -9,6 +9,15 @@ import edu.uic.msr.chunk.Chunker
 import edu.uic.msr.ollama.Ollama
 import org.slf4j.LoggerFactory
 
+/**
+ * IndexAll:
+ *  - Loads a list of PDF paths from config (io.pdfListFile)
+ *  - Extracts text, chunks it, embeds chunks (batched), and writes a CSV with vectors
+ *
+ * Logging:
+ *  - INFO: job summary, per-PDF progress, final path
+ *  - DEBUG: workDir/maxDocs and batch details
+ */
 object IndexAll {
   // --- logging ---
   private val log = LoggerFactory.getLogger(getClass)
@@ -60,6 +69,7 @@ object IndexAll {
 
         // Embed in mini-batches
         chunks.grouped(batch).zipWithIndex.foreach { case (group, gi) =>
+          log.debug("Embedding batch gi={} size={}", Int.box(gi), Int.box(group.size))
           val vecs: Vector[Array[Float]] = Ollama.embed(group.toVector, model)
           group.zip(vecs).zipWithIndex.foreach { case ((chunkText, vec), cj) =>
             val idxInDoc = gi * batch + cj

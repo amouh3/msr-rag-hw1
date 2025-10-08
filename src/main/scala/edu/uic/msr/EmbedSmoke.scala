@@ -8,6 +8,16 @@ import edu.uic.msr.chunk.Chunker
 import edu.uic.msr.ollama.Ollama
 import org.slf4j.LoggerFactory
 
+/**
+ * EmbedSmoke:
+ *  - Loads one PDF path from the configured list, extracts text, chunks, and requests embeddings.
+ *  - Prints a concise human-readable line and logs timings & dims.
+ *
+ * Logging:
+ *  - INFO: config snapshot, first path, chunk count, embedding summary
+ *  - WARN: empty text extraction
+ *  - ERROR: early abort conditions
+ */
 object EmbedSmoke {
   private val log = LoggerFactory.getLogger(getClass)
 

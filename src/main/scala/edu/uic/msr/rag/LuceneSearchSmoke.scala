@@ -11,6 +11,22 @@ import scala.jdk.CollectionConverters._
 import org.slf4j.LoggerFactory
 import edu.uic.msr.ollama.Ollama
 
+/**
+ * Smoke test for Lucene vector search over built shard directories.
+ *
+ * Flow:
+ *  1) Read minimal config (mr.outputDir, embed.model).
+ *  2) Resolve shard directories named index_shard_* under outputDir.
+ *  3) Embed the query with Ollama.
+ *  4) Search each shard with KnnFloatVectorQuery, gather hits, merge top-K.
+ *
+ * Logs:
+ *  - INFO: config snapshot, shard count, final merged count
+ *  - DEBUG: per-shard timings and hit counts
+ *  - ERROR: unexpected empty embedding
+ *
+ * NOTE: Keeps your println output of the final Top-K table.
+ */
 object LuceneSearchSmoke {
   private val log = LoggerFactory.getLogger(getClass)
 
@@ -32,19 +48,29 @@ object LuceneSearchSmoke {
     val k        = after("--k").flatMap(s => s.toIntOption).getOrElse(10)
     val query    = after("--q").getOrElse("android permissions")
 
-    log.info(s"LuceneSearchSmoke: root=$rootOut  model=$model  k=$k  q=$query")
+    log.info("LuceneSearchSmoke: conf='{}', root='{}', model='{}', k={}, q='{}'",
+      confPath, rootOut, model, Int.box(k), query)
 
-    val qvec = Ollama.embed(Vector(query), model).headOption.getOrElse {
-      throw new RuntimeException("Empty embedding from Ollama")
+    val qvec = {
+      val t0 = System.nanoTime()
+      val v = Ollama.embed(Vector(query), model).headOption.getOrElse {
+        log.error("Empty embedding from Ollama for query='{}'", query)
+        throw new RuntimeException("Empty embedding from Ollama")
+      }
+      val dt = (System.nanoTime() - t0) / 1e6
+      log.info("Embedded query (dim={}, ~{} ms)", Int.box(v.length), Double.box(dt))
+      v
     }
 
     val shards = listShardDirs(rootOut)
+    log.info("Found {} shard dir(s) under {}", Int.box(shards.size), rootOut)
     require(shards.nonEmpty, s"No shard dirs under $rootOut")
 
     // Search each shard
     case class Hit(score: Float, docId: String, chunkId: String, text: String)
     val allHits =
       shards.flatMap { p =>
+        val t0 = System.nanoTime()
         val dir   = FSDirectory.open(p)
         val rdr   = DirectoryReader.open(dir)
         val srch  = new IndexSearcher(rdr)
@@ -61,11 +87,14 @@ object LuceneSearchSmoke {
           )
         }
         rdr.close(); dir.close()
+        val dt = (System.nanoTime() - t0) / 1e6
+        log.debug("Shard {}: {} hit(s) in ~{} ms", p.getFileName.toString, Int.box(hits.size), Double.box(dt))
         hits
       }
 
     // Merge top-k globally
     val merged = allHits.sortBy(h => -h.score).take(k)
+    log.info("Merged global topK: {}", Int.box(merged.size))
 
     println(s"\nTop $k results:")
     merged.zipWithIndex.foreach { case (h, i) =>

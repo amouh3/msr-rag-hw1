@@ -4,8 +4,20 @@ import com.typesafe.config.ConfigFactory
 import edu.uic.msr.ollama.Ollama
 import scala.io.Source
 import scala.util.Try
+import org.slf4j.LoggerFactory
 
+/**
+ * SearchSmoke:
+ *  - Loads the CSV index produced by IndexAll (doc,chunk_idx,chars,vec)
+ *  - Embeds a query and returns the top-k cosine matches
+ *
+ * Logging:
+ *  - INFO: config snapshot, row count, query/model
+ *  - WARN: empty query embedding
+ */
 object SearchSmoke {
+
+  private val log = LoggerFactory.getLogger(getClass)
 
   final case class Row(doc: String, chunkIdx: Int, chars: Int, vec: Array[Float])
 
@@ -47,10 +59,13 @@ object SearchSmoke {
     println(s"Loading index: $index")
     val rows = Source.fromFile(index).getLines().drop(1).flatMap(parseRow).toVector
     println(s"Rows loaded: ${rows.size}")
+    log.info("SearchSmoke: conf='{}', model='{}', rows={}, k={}, q='{}'",
+      confPath, model, Int.box(rows.size), Int.box(k), query)
 
     println(s"Embedding query with '$model': $query")
     val qvOpt = Ollama.embed(Vector(query), model).headOption
     if (qvOpt.isEmpty) {
+      log.warn("Empty embedding returned for query='{}'", query)
       println("Failed to embed query (empty vector)"); return
     }
     val qv = qvOpt.get

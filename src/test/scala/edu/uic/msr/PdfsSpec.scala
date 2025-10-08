@@ -6,8 +6,16 @@ import java.nio.file.{Files, Paths}
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.text.PDFTextStripper
 import java.io.ByteArrayOutputStream
+import org.slf4j.LoggerFactory
 
+/**
+ * PdfsSpec:
+ *  - Creates a tiny PDF on disk, calls Pdfs.readText, and checks extracted text.
+ *  - Logging is minimal to keep test output clean.
+ */
 class PdfsSpec extends AnyFunSuite {
+  private val log = LoggerFactory.getLogger(getClass)
+
   test("readText: extracts text from a simple PDF") {
     // create a tiny in-memory PDF
     val doc = new PDDocument()
@@ -24,8 +32,10 @@ class PdfsSpec extends AnyFunSuite {
 
     val tmp = Files.createTempFile("pdfs-spec-", ".pdf")
     doc.save(tmp.toFile); doc.close()
+    log.debug("PdfsSpec: wrote temp PDF at {}", tmp.toAbsolutePath.toString)
 
     val text = Pdfs.readText(tmp.toAbsolutePath.toString)
+    log.debug("PdfsSpec: extracted chars={}", Int.box(text.length))
     assert(text.contains("Hello"))
     Files.deleteIfExists(tmp)
   }
