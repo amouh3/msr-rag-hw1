@@ -36,6 +36,8 @@ Further information regarding my selected configuration parameters, limitations,
 
 CSV outputs are by default attached in the repo but rerunning the commands will update them. Details are provided below.
 
+/src/main/scala contain the relevant functions.
+
 ## REQUIREMENTS(tested version in paranteheses)
 
 
