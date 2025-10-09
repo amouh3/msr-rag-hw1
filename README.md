@@ -32,9 +32,9 @@ Pipeline: extract → chunk → embed → **Lucene HNSW** index (MapReduce local
 The repo is self-contained for the default run: it uses a small 30-PDF corpus and a relative list file so graders don’t need extra data.
 
 
-Further information regarding my selected configuration parameters, limitations, adn further information on my findings are attached near the bottom of this readme. Additional information can be found in the comments of my code.
+Further information regarding my selected configuration parameters, limitations, and detail on my findings are attached near the bottom of this readme. Additional information beyond this can be found in the comments of my code.
 
-CSV outputs are by default attached in the repo but rerunning the commands will update them. More information is provided below.
+CSV outputs are by default attached in the repo but rerunning the commands will update them. Details are provided below.
 
 ## REQUIREMENTS(tested version in paranteheses)
 
