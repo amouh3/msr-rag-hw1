@@ -2,7 +2,7 @@
 
 
 
-Author: Ali Mouhtadi
+Ali Mouhtadi
 
 Email: amouh3@uic.edu  
 
