@@ -30,7 +30,8 @@ out/
 out_mr_out/
 out_mr_mr_out/
 
-
+!out/stats/
+!out/stats/*.csv
 
 # --- JARs (if you build fat jars locally) ---
 *.jar

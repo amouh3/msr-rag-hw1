@@ -1,4 +1,4 @@
-\# CS441 — RAG over the MSR Corpus (Lucene + Ollama)
+\# CS441 HW 1 - RAG MSR Corpus (Lucene + Ollama)
 
 
 
@@ -6,7 +6,8 @@ Author: Ali Mouhtadi
 
 Email: amouh3@uic.edu  
 
-Demo Video: https://www.youtube.com/watch?v=ipGOIyptAg8
+## Demo Video on AWS Deployment and Execution: 
+- https://www.youtube.com/watch?v=ipGOIyptAg8
 
 
 
@@ -31,6 +32,9 @@ Pipeline: extract → chunk → embed → **Lucene HNSW** index (MapReduce local
 The repo is self-contained for the default run: it uses a small 30-PDF corpus and a relative list file so graders don’t need extra data.
 
 
+Further information regarding my selected configuration parameters, limitations, adn further information on my findings are attached near the bottom of this readme. Additional information can be found in the comments of my code.
+
+CSV outputs are by default attached in the repo but rerunning the commands will update them. More information is provided below.
 
 ## REQUIREMENTS(tested version in paranteheses)
 
@@ -209,79 +213,6 @@ After doing so, simply run it with:
 By default, big.conf is set for my own local usage of my large corpus but alterations make it functional for any corpus you might want to test it on.
 
 
-
-### Map & Reduce (conceptual explanation)
-
-# How I partitioned the data
-I use a stable hash partitioner so each document’s chunks always go to the same reducer:
-
-Rule: shardId = abs(hash(doc_id)) % shards
-where doc_id is the PDF filename (or path), and shards is index.shards from the config.
-
-Why:
-
-Balanced: uniform-ish spread across reducers without a global shuffle of all chunks.
-
-Stable: re-runs send a doc to the same shard (unless shards changes).
-
-Cheap to compute: no metadata service required.
-
-Mapper effect: all chunks from a given doc_id emit with the same shardId.
-
-Reducer effect: each reducer builds one Lucene directory: index_shard_<shardId>.
-
-Edge cases: highly uneven docs can cause minor skew; for this HW , the scale is acceptable.
-If needed, shard on (doc_id, chunk_idRange) or increase shards.
-
-
-Mapper (local mode):
-
-- Read a PDF path
-
-- Extract text with PDFBox
-
-- Chunk (≈1000 chars, 200 overlap)
-
-- Embed chunks with mxbai-embed-large (1024-d)
-
-- Emit (shardId, JSON chunk record) where shardId = hash(path) % shards
-
-Reducer:
-
-- For each shardId, collect its JSON records
-
-- Build a Lucene HNSW index (vector field + metadata)
-
-- Write a shard directory: index_shard_<id> (must have segments_*)
-
-- (Local mode) copy to out_mr_out/index_shard_<id>
-
-AskLucene:
-
-- Embed query
-
-- Search all shards (k, perShardFetch)
-
-- Check guards (minTopScore, minKeywordOverlap)
-
-- Pack context → call Ollama generator → print answer + sources
-
- Further Design Choices
-
-- Chunking: ~1000 chars, ~200 overlap (~10–25%)
-
-- Embedding: mxbai-embed-large (1024-dim) for both index \& query
-
-- Similarity: cosine (L2-normalized vectors)
-
-- Index: Lucene HNSW vector field; 2 shards for MR + fan-out/fan-in queries
-
-- Guardrails: refuse if topScore < 0.28 or keywordOverlap < 1; sanitize stray “\[n]” citations
-
-- Generator: llama3.2:1b-instruct-q4_K_M, temperature = 0.0
-
-
-
 ------------------------------------------------------------
 ## Generate Statistics (csv files; by defualt uses the small repository corpus)
 ------------------------------------------------------------
@@ -366,4 +297,223 @@ To run a single test:
 
 #Logging & noise
 
+
 Logback is preconfigured. Change levels in src/main/resources/logback.xml (e.g., set edu.uic.msr to INFO).
+
+
+
+
+
+### Map & Reduce (conceptual explanation)
+
+# How I partitioned the data
+I use a stable hash partitioner so each document’s chunks always go to the same reducer:
+
+Rule: shardId = abs(hash(doc_id)) % shards
+where doc_id is the PDF filename (or path), and shards is index.shards from the config.
+
+Why:
+
+Balanced: uniform-ish spread across reducers without a global shuffle of all chunks.
+
+Stable: re-runs send a doc to the same shard (unless shards changes).
+
+Cheap to compute: no metadata service required.
+
+Mapper effect: all chunks from a given doc_id emit with the same shardId.
+
+Reducer effect: each reducer builds one Lucene directory: index_shard_<shardId>.
+
+Edge cases: highly uneven docs can cause minor skew; for this HW , the scale is acceptable.
+If needed, shard on (doc_id, chunk_idRange) or increase shards.
+
+
+Mapper (local mode):
+
+- Read a PDF path
+
+- Extract text with PDFBox
+
+- Chunk (≈1000 chars, 200 overlap)
+
+- Embed chunks with mxbai-embed-large (1024-d)
+
+- Emit (shardId, JSON chunk record) where shardId = hash(path) % shards
+
+Reducer:
+
+- For each shardId, collect its JSON records
+
+- Build a Lucene HNSW index (vector field + metadata)
+
+- Write a shard directory: index_shard_<id> (must have segments_*)
+
+- (Local mode) copy to out_mr_out/index_shard_<id>
+
+AskLucene:
+
+- Embed query
+
+- Search all shards (k, perShardFetch)
+
+- Check guards (minTopScore, minKeywordOverlap)
+
+- Pack context → call Ollama generator → print answer + sources
+
+ Further Design Choices
+
+- Chunking: ~1000 chars, ~200 overlap (~10–25%)
+
+- Embedding: mxbai-embed-large (1024-dim) for both index \& query
+
+- Similarity: cosine (L2-normalized vectors)
+
+- Index: Lucene HNSW vector field; 2 shards for MR + fan-out/fan-in queries
+
+- Guardrails: refuse if topScore < 0.28 or keywordOverlap < 1; sanitize stray “\[n]” citations
+
+- Generator: llama3.2:1b-instruct-q4_K_M, temperature = 0.0
+
+
+## Further Info on my program deisgn/models and how I assembled and deployed my components
+
+
+# General 
+
+The experiments conducted in this project aim to evaluate the performance and behavior of my distributed retrieval pipeline implemented using Hadoop MapReduce and Lucene. The system’s overall purpose is to process a collection of PDF documents, tokenize and embed their contents, and generate shard-level Lucene indexes that can later be queried through  AskLucene's interface. The final outputs(the CSV reports vocab.csv, similarity.csv, and analogy.csv) reflect the internal word statistics, embedding relationships, and analogy performance computed across the corpus.
+
+My configuration was designed to prioritize simplicity and scalability rather than raw performance, which aligns with the educational intent of this assignment. I prioritized understanding the flow and modularity of the MapReduce jobs over fine-tuning the parallelism parameters.
+
+
+The experiments were executed on both local and AWS EMR cluster environments, with configuration parameters  adjusted to fit each as best as I could make them.
+
+Mode and Input/Output Directories
+
+In conf/mr.local.conf, I specified:
+
+- `mr.inputList = "s3a://cs-441-bucket/input/pdf_list.txt"`
+- `mr.outputDir = "s3a://cs-441-bucket/outputs/mr_partfiles_mr_out"`
+
+
+This configuration allowed the system to read a list of PDF files stored in S3 and write all intermediate and final outputs back to S3. It was essential for distributed execution, ensuring that both mappers and reducers could access the data without local disk dependencies.
+
+
+# Parallelism Parameters
+
+I configured the job to launch multiple mapper tasks, one per shard of the corpus, using Hadoop’s built-in partitioning. Each mapper handled a subset of PDFs, extracted text, and produced partial Lucene indexes.
+
+Reducers were configured to merge index shards and generate unified statistics. Because my corpus was relatively small (10 PDFs for AWS testing and 30 PDFS for the bulk of my local testing), I chose a modest reducer count (1-2) to avoid unnecessary overhead. For larger corpora, more reducers would improve throughput.
+
+
+
+# Ollama Embedding Configuration
+
+The embedding model mxbai-embed-large was pulled and served through a running Ollama service on port 11434.
+
+I verified connectivity before job submission using:
+
+`curl -sf http://127.0.0.1:11434/api/tags | head`
+
+
+This ensured the mappers could access embeddings consistently across nodes. Although Ollama was not distributed in this setup, it acted as a fixed remote endpoint, demonstrating how embedding generation could integrate into a larger pipeline.
+
+
+# File Setup
+
+pdf_list.txt defined the corpus file paths.
+
+Each output directory (e.g., out_mr_out/index_shard_*) corresponded to a Lucene index built by a mapper.
+
+The part-r-00000 and part-r-00001 files stored final reducer outputs, ensuring Hadoop’s standard structure was preserved for further analysis.
+
+
+# Results
+After execution, the resulting CSVs contained both detailed quantitative and qualitative insights:
+
+vocab.csv recorded token frequencies across the corpus, confirming successful text extraction and normalization.
+
+similarity.csv contained pairwise cosine similarities between selected word embeddings, reflecting semantic coherence within the limited dataset.
+
+analogy.csv tested vector arithmetic as described. Although the corpus was small, the analogy behavior did align with what was expected. Words in semantically related contexts showed distinct directional patterns.
+
+The results validated that the end-to-end pipeline, from document input to embedding evaluation, functioned as intended. Even though limited data constrained the richness of relationships, the structural correctness of the output confirmed that my mappers and reducers were  properly integratd.
+
+# Design
+The Mapper component read each PDF path, extracted its text using Apache PDFBox, split it into tokenized sentences, and requested embeddings from Ollama. Each mapper emitted key–value pairs where the key was the shard identifier and the value was the serialized Lucene document or embedding data.
+
+The Reducer merged the intermediate results, building Lucene indexes and aggregating word statistics. It handled shard consolidation, vocabulary counting, and vector computations necessary for similarity and analogy evaluation.
+
+
+# AWS Deployment
+Deployment on EMR followed this sequence of events:
+
+- Upload corpus PDFs and configuration files to S3.
+
+- Launch EMR cluster (cpu of your choosing) with Hadoop 3.4.1.
+
+- SSH into the primary node via PuTTY to verify Ollama and environment readiness.
+
+- Confirm and pull required llama models
+
+- Pull the app JAR onto the node with aws s3 cp s3://<yourbucket>/jars/msr-rag-hw1-assembly.jar /tmp/app.jar
+
+- Execute the MapReduce job via:
+
+yarn jar /tmp/app.jar edu.uic.msr.rag.JobMain --conf emr-dev.conf --mode yarn
+
+- Stage the shards locally so AskLucene can read them(it expects a local directory)
+mkdir -p /mnt/tmp/index_shards_mr_out
+aws s3 cp --recursive \
+  s3://cs-441-bucket/outputs/mr_partfiles_mr_out/ \
+  /mnt/tmp/index_shards_mr_out/ \
+  --exclude "" --include "indexshard/*"
+
+- Query AsklLucene again against the local shards(will embed, retrieve, answer)
+/usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java \
+  -Dindex.outRoot=/mnt/tmp/index_shards_mr_out \
+  -Dindex.shards=2 \
+  -Dembed.model=mxbai-embed-large \
+  -Danswer.model=llama3.2:1b-instruct-q4_K_M \
+  -cp /tmp/app.jar edu.uic.msr.rag.AskLucene \
+  "what does section 3 say about inconsistency?"
+
+- Validate successful job completion and view logs for further information.
+
+This design highlights modular separation between text processing, embedding generation, and statistical evaluation. Each phase was encapsulated and is possible of scaling independently on larger clusters.
+
+
+# Limitations of the Implementation
+
+- Corpus Size and Embedding Generality
+My corpus on AWS contained only about 10 PDFs, significantly limiting the diversity of tokens and semantic relationships. As a result, analogy and similarity metrics were less representative of general linguistic behavior.
+
+- Reducer Scalability
+While sufficient for demonstration, my reducer design performs global merges sequentially. A larger dataset with many shards could lead to a performance bottleneck during final aggregation.
+
+-Retry Logic
+Although Hadoop inherently supports task retries, my current mapper implementation does not include fine-grained retry logic for failed embedding requests (e.g., HTTP timeouts). This would be important for robustness in real deployments.
+
+-Limited parameter Tuning
+The pipeline currently relies on default Lucene and embedding parameters as tokenization thresholds, vector dimensionality, and index merge factors were not tuned. Optimizing these could yield more accurate similarity and analogy results.
+
+-S3 I/O Overhead
+Reading and writing directly to S3 simplified deployment but introduced latency. Local HDFS storage on EMR nodes would likely improve performance for larger workloads.
+
+# Conclusion
+
+In summary, my system successfully demonstrated an end-to-end distributed text processing pipeline, capable of extracting, embedding, indexing, and evaluating a corpus through Hadoop MapReduce. While limited by dataset size, embedding centralization, and basic configuration choices, the implementation correctly illustrated the architecture of a scalable retrieval-augmented generation (RAG) system.
+
+The experiments emphasize how parameter tuning, distributed embedding generation, and larger corpora would meaningfully extend this framework’s realism and performance in a production-grade cloud environment.
+
+
+
+
+
+
+
+
+
+
+
+
+
