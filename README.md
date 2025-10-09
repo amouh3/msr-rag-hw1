@@ -295,7 +295,6 @@ VocabExportSpec - vocab.csv shape and non-emptiness
 
 EvalEmbeddingsSpec - similarity.csv / analogy.csv sanity (headers, row count > 0)
 
-AskLuceneSpec (optional) - out-of-corpus refusal behavior
 
 
 To run a single test:
