@@ -316,19 +316,19 @@ Logback is preconfigured. Change levels in src/main/resources/logback.xml (e.g.,
 I use a stable hash partitioner so each document’s chunks always go to the same reducer:
 
 Rule: shardId = abs(hash(doc_id)) % shards
-where doc_id is the PDF filename (or path), and shards is index.shards from the config.
+- where doc_id is the PDF filename (or path), and shards is index.shards from the config.
 
 Why:
 
-Balanced: uniform-ish spread across reducers without a global shuffle of all chunks.
+- Balanced: uniform-ish spread across reducers without a global shuffle of all chunks.
 
-Stable: re-runs send a doc to the same shard (unless shards changes).
+- Stable: re-runs send a doc to the same shard (unless shards changes).
 
-Cheap to compute: no metadata service required.
+- Cheap to compute: no metadata service required.
 
-Mapper effect: all chunks from a given doc_id emit with the same shardId.
+- Mapper effect: all chunks from a given doc_id emit with the same shardId.
 
-Reducer effect: each reducer builds one Lucene directory: index_shard_<shardId>.
+- Reducer effect: each reducer builds one Lucene directory: index_shard_<shardId>.
 
 Edge cases: highly uneven docs can cause minor skew; for this HW , the scale is acceptable.
 If needed, shard on (doc_id, chunk_idRange) or increase shards.
