@@ -451,7 +451,7 @@ The Reducer merged the intermediate results, building Lucene indexes and aggrega
 
 
 # AWS Deployment
-Deployment on EMR followed this sequence of events:
+Deployment on EMR mimics the following sequence of steps. For a more detailed and comprehensive guide, watch the attached video above:
 
 - Upload corpus PDFs and configuration files to S3.
 
