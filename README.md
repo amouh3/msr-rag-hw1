@@ -6,7 +6,7 @@ Author: Ali Mouhtadi
 
 Email: amouh3@uic.edu  
 
-Demo Video: <YouTube link>
+Demo Video: https://www.youtube.com/watch?v=ipGOIyptAg8
 
 
 
@@ -212,6 +212,28 @@ By default, big.conf is set for my own local usage of my large corpus but altera
 
 ### Map & Reduce (conceptual explanation)
 
+# How I partitioned the data
+I use a stable hash partitioner so each document’s chunks always go to the same reducer:
+
+Rule: shardId = abs(hash(doc_id)) % shards
+where doc_id is the PDF filename (or path), and shards is index.shards from the config.
+
+Why:
+
+Balanced: uniform-ish spread across reducers without a global shuffle of all chunks.
+
+Stable: re-runs send a doc to the same shard (unless shards changes).
+
+Cheap to compute: no metadata service required.
+
+Mapper effect: all chunks from a given doc_id emit with the same shardId.
+
+Reducer effect: each reducer builds one Lucene directory: index_shard_<shardId>.
+
+Edge cases: highly uneven docs can cause minor skew; for this HW , the scale is acceptable.
+If needed, shard on (doc_id, chunk_idRange) or increase shards.
+
+
 Mapper (local mode):
 
 - Read a PDF path
@@ -342,125 +364,6 @@ AskLuceneSpec (optional) - out-of-corpus refusal behavior
 To run a single test:
 - `sbt "testOnly *ChunkerSpec"`
 
+#Logging & noise
 
-======================================================================
-README – EMR + LUCENE RAG WORKFLOW (PLAIN TEXT)
-======================================================================
-
-Purpose
--------
-This document captures the exact AWS EMR workflow used to build Lucene
-shards with MapReduce and then run a live RAG query using Ollama.
-Everything below is plain text for easy copy/paste.
-
-You will:
-- verify Ollama on the EMR master
-- pull the required models
-- fetch your fat JAR from S3
-- clean any previous outputs
-- run the MR job with YARN
-- copy the produced Lucene index_shard_* from S3 to local disk
-- ask a question via the AskLucene main
-
-Assumptions
------------
-- S3 bucket:               s3://cs-441-bucket
-- Input list (on S3):      s3://cs-441-bucket/input/pdf_list_small.txt
-- MR output root (on S3):  s3://cs-441-bucket/outputs/mr_partfiles_mr_out
-- Fat JAR (on S3):         s3://cs-441-bucket/jars/msr-rag-hw1-assembly.jar
-- EMR config file:         emr-dev.conf (present in the jar)
-- MR main:                 edu.uic.msr.rag.JobMain
-- Local Q&A main:          edu.uic.msr.rag.AskLucene
-- Models:                  mxbai-embed-large  and  llama3.2:1b-instruct-q4_K_M
-- Run commands on the EMR master as user "hadoop".
-
-Java Requirement
-----------------
-Lucene 9.x requires Java 11 (classfile version 55).
-Use this explicit Java (referenced below as JAVA11):
-
-/usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java
-
-Models
-------
-- Embedding: mxbai-embed-large
-- Answer:    llama3.2:1b-instruct-q4_K_M
-Ollama should be running on the master. Steps below will restart it if needed.
-
-
-
-======================================================================
-WHAT EACH STEP DOES
-======================================================================
-1) Start/verify Ollama
-   Ensures the embedding and answer models can be served locally.
-
-2) Pull models
-   Idempotent: pulls only if missing.
-
-3) Fetch JAR
-   Copies the fat JAR to /tmp/app.jar on the master.
-
-4) Clean outputs
-   Avoids stale results in S3 or HDFS confusing new runs.
-
-5) Run MapReduce on YARN
-   Mappers: extract → chunk → embed → emit (shardId, JSON record).
-   Reducers: build Lucene index locally, then copy each shard directory to:
-             s3://cs-441-bucket/outputs/mr_partfiles_mr_out/index_shard_<N>
-
-6) Copy Lucene shards to local disk
-   Search is much faster from local disk than directly from S3.
-
-7) Sanity check
-   Each index_shard_* must contain at least: segments_N, _0.cfs, _0.cfe, _0.si.
-
-8) Ask a question
-   AskLucene embeds the query, searches all index_shard_* locally, and calls
-   the answer model with retrieved context.
-
-
-======================================================================
-VIDEO CHECKLIST (WHAT TO SHOW)
-======================================================================
-- Intro with your name (camera briefly on)
-- Show S3 inputs (pdf_list_small.txt)
-- Launch MR job (yarn jar …) and watch it complete
-- Show S3 outputs with index_shard_* produced
-- Copy shards locally; list segment files
-- Run AskLucene; show retrieved chunks and final answer
-- Bonus: ask an out-of-corpus question and show safe refusal/low-confidence behavior
-
-
-
-# AWS Cluster Usage Steps:
-
-
-1)   sudo systemctl is-active --quiet ollama || sudo systemctl restart ollama
-curl -sf http://127.0.0.1:11434/api/tags | head || echo "Ollama not responding"
-
-2)  ollama list | grep -q 'mxbai-embed-large' || ollama pull mxbai-embed-large
-ollama list | grep -q 'llama3.2:1b-instruct-q4_K_M' || ollama pull llama3.2:1b-instruct-q4_K_M
-
-3)) aws s3 cp s3://cs-441-bucket/jars/msr-rag-hw1-assembly.jar /tmp/app.jar
-
-4) hadoop fs -rm -r -f s3a://cs-441-bucket/outputs/mr_partfiles_mr_out || true
-
-# Lucene shard target on HDFS (what your reducer writes to)
-hdfs dfs -rm -r -f /msr/index_shards_mr_out || true
-
-5) yarn jar /tmp/app.jar edu.uic.msr.rag.JobMain --conf emr-dev.conf --mode yarn
-
-6) mkdir -p /mnt/tmp/index_shards_mr_out
-aws s3 cp --recursive \
-  s3://cs-441-bucket/outputs/mr_partfiles_mr_out/ \
-  /mnt/tmp/index_shards_mr_out/ \
-  --exclude "" --include "indexshard/*"
-
-7) /usr/lib/jvm/java-11-amazon-corretto.x86_64/bin/java \
-  -Dindex.outRoot=/mnt/tmp/index_shards_mr_out \
-  -Dindex.shards=2 \
-  -Dembed.model=mxbai-embed-large \
-  -Danswer.model=llama3.2:1b-instruct-q4_K_M \
-  -cp /tmp/app.jar edu.uic.msr.rag.AskLucene \
-  "what does section 3 say about inconsistency?"
+Logback is preconfigured. Change levels in src/main/resources/logback.xml (e.g., set edu.uic.msr to INFO).

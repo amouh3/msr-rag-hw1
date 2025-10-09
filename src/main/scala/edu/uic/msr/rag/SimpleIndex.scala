@@ -23,38 +23,48 @@ object SimpleIndex {
     log.info("SimpleIndex.loadJsonl: path='{}'", path)
     val src = Source.fromFile(path, "UTF-8")
     try {
-      var parsed = 0
-      var skipped = 0
-      val vec = src.getLines().flatMap { line =>
-        if (line.trim.isEmpty) { skipped += 1; None }
-        else {
-          parse(line).toOption.flatMap { js =>
-            val c = js.hcursor
-            val r = for {
-              id   <- c.get[String]("id").toOption
-              text <- c.get[String]("text").toOption
-              emb  <- c.get[Vector[Double]]("embedding").toOption
-            } yield {
-              parsed += 1
-              Chunk(id, text, emb)
+      // Fold over lines, building results immutably:
+      //   acc._1 = List[Chunk] (reverse order for O(1) cons; reversed once at the end)
+      //   acc._2 = parsed count
+      //   acc._3 = skipped count
+      val (revChunks, parsed, skipped) =
+        src.getLines().foldLeft((List.empty[Chunk], 0, 0)) {
+          case ((accChunks, accParsed, accSkipped), rawLine) =>
+            val line = rawLine.trim
+            if (line.isEmpty) (accChunks, accParsed, accSkipped + 1)
+            else {
+              val maybeChunk: Option[Chunk] =
+                parse(line).toOption.flatMap { js =>
+                  val c = js.hcursor
+                  for {
+                    id   <- c.get[String]("id").toOption
+                    text <- c.get[String]("text").toOption
+                    emb  <- c.get[Vector[Double]]("embedding").toOption
+                  } yield Chunk(id, text, emb)
+                }
+
+              maybeChunk match {
+                case Some(ch) => (ch :: accChunks, accParsed + 1, accSkipped)
+                case None     => (accChunks, accParsed,     accSkipped + 1)
+              }
             }
-            if (r.isEmpty) skipped += 1
-            r
-          }
         }
-      }.toVector
+
       log.info("SimpleIndex.loadJsonl: loaded={} skipped={}", Int.box(parsed), Int.box(skipped))
-      vec
-    } finally src.close()
+      revChunks.reverse.toVector
+    } finally {
+      src.close()
+    }
   }
 
   /** Cosine similarity.
    * Returns 0.0 if either vector has zero norm.
+   * (Behavior unchanged; zip truncates to the shorter length if they differ.)
    */
   def cosine(a: Vector[Double], b: Vector[Double]): Double = {
-    val dot = a.view.zip(b).map { case (x,y) => x*y }.sum
-    val na  = math.sqrt(a.view.map(x => x*x).sum)
-    val nb  = math.sqrt(b.view.map(x => x*x).sum)
+    val dot = a.view.zip(b).map { case (x, y) => x * y }.sum
+    val na  = math.sqrt(a.view.map(x => x * x).sum)
+    val nb  = math.sqrt(b.view.map(x => x * x).sum)
     if (na == 0 || nb == 0) 0.0 else dot / (na * nb)
   }
 

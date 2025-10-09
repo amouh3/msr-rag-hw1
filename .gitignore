@@ -30,10 +30,7 @@ out/
 out_mr_out/
 out_mr_mr_out/
 
-# If you export stats elsewhere, ignore those too:
-tmp/
-*.csv
-*.tsv
+
 
 # --- JARs (if you build fat jars locally) ---
 *.jar

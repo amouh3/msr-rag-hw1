@@ -46,23 +46,19 @@ object Chunker {
     val stride = math.max(maxChars - overlap, 1)
     log.debug("Chunker.chunks: computed stride={}", Int.box(stride))
 
-    val out = Vector.newBuilder[String]
-    var i = 0
     val n = clean.length
-    while (i < n) {
+
+    val indices = LazyList.iterate(0)(_ + stride).takeWhile(_ < n)
+
+    val res = indices.map { i =>
       val end = math.min(i + maxChars, n)
-      // DEBUG-level boundary logging is helpful for diagnosing off-by-one chunking
       log.trace("Chunker.chunks: slice i={}..end={}", Int.box(i), Int.box(end))
-      out += clean.substring(i, end)
-      if (end == n) { // reached the end
-        i = n
-      } else {
-        i = i + stride
-      }
-    }
-    val res = out.result()
+      clean.substring(i, end)
+    }.toVector
+
     log.info("Chunker.chunks(done): produced {} chunks (maxChars={}, overlap={}, stride={})",
       Int.box(res.length), Int.box(maxChars), Int.box(overlap), Int.box(stride))
+
     res
   }
 }

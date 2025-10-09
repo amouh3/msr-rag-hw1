@@ -20,18 +20,18 @@ object TokenEmbedAndNeighbors {
   private val log = LoggerFactory.getLogger(getClass)
 
   private def l2(v: Array[Float]): Array[Float] = {
-    val n = math.sqrt(v.foldLeft(0.0){ (acc,x) => acc + x*x }).toFloat
+    val n = math.sqrt(v.foldLeft(0.0){ (acc, x) => acc + x * x }).toFloat
     if (n == 0f) v else v.map(_ / n)
   }
+
+  // dot product over the overlapping prefix (matches previous effective behavior)
   private def cos(a: Array[Float], b: Array[Float]): Float = {
-    var s = 0.0f; var i = 0
-    val len = math.min(a.length, b.length)
-    while (i < len) { s += a(i) * b(i); i += 1 }
-    s
+    val n = math.min(a.length, b.length)
+    a.iterator.take(n).zip(b.iterator).map { case (x, y) => x * y }.sum
   }
 
   def main(args: Array[String]): Unit = {
-    val confPath = if (args.contains("--conf")) args(args.indexOf("--conf")+1) else "conf/local.conf"
+    val confPath = if (args.contains("--conf")) args(args.indexOf("--conf") + 1) else "conf/local.conf"
     val cfg      = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
 
     val outDir   = Paths.get(cfg.getString("stats.outputDir"))
@@ -41,8 +41,10 @@ object TokenEmbedAndNeighbors {
     val batch    = if (cfg.hasPath("embed.batch"))     cfg.getInt("embed.batch")     else 64
     Files.createDirectories(outDir)
 
-    log.info("TokenEmbedAndNeighbors: conf='{}', outDir='{}', model='{}', topN={}, kNN={}, batch={}",
-      confPath, outDir.toString, model, Int.box(topN), Int.box(kNN), Int.box(batch))
+    log.info(
+      "TokenEmbedAndNeighbors: conf='{}', outDir='{}', model='{}', topN={}, kNN={}, batch={}",
+      confPath, outDir.toString, model, Int.box(topN), Int.box(kNN), Int.box(batch)
+    )
 
     // Read topN tokens from vocab.csv (expects header: token,token_id,freq)
     val vocabCsv = outDir.resolve("vocab.csv").toString
@@ -69,36 +71,50 @@ object TokenEmbedAndNeighbors {
     // Write token_embeddings.csv
     val embCsv = new StringBuilder
     embCsv.append("token")
-    for (d <- 0 until dim) embCsv.append(s",d$d")
+    embCsv.append((0 until dim).iterator.map(d => s",d$d").mkString)
     embCsv.append("\n")
-    vocab.zip(vecs).foreach { case (t, v) =>
+    vocab.iterator.zip(vecs.iterator).foreach { case (t, v) =>
       embCsv.append(t)
-      v.foreach(x => embCsv.append(f",$x"))
+      v.iterator.foreach(x => embCsv.append(f",$x"))
       embCsv.append("\n")
     }
-    Files.write(outDir.resolve("token_embeddings.csv"), embCsv.result().getBytes("UTF-8"),
-      StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+    Files.write(
+      outDir.resolve("token_embeddings.csv"),
+      embCsv.result().getBytes("UTF-8"),
+      StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING
+    )
 
     // Compute neighbors (brute-force)
     val neighbors = new StringBuilder
     neighbors.append("token,neighbor,cosine\n")
     val arr = vecs.toArray
     val idx = vocab.toArray
-    for (i <- arr.indices) {
-      val scores = arr.indices.iterator
-        .filter(_ != i)
-        .map(j => (j, cos(arr(i), arr(j))))
-        .toArray
-        .sortBy{ case (_,s) => -s }
-        .take(kNN)
-      scores.foreach { case (j,s) =>
+
+    arr.indices.iterator.foreach { i =>
+      val scores =
+        arr.indices.iterator
+          .filter(_ != i)
+          .map(j => (j, cos(arr(i), arr(j))))
+          .toArray
+          .sortBy { case (_, s) => -s }
+          .take(kNN)
+
+      scores.iterator.foreach { case (j, s) =>
         neighbors.append(s"${idx(i)},${idx(j)},$s\n")
       }
     }
-    Files.write(outDir.resolve("neighbors.csv"), neighbors.result().getBytes("UTF-8"),
-      StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
 
-    log.info("Wrote {}, {}", outDir.resolve("token_embeddings.csv").toString, outDir.resolve("neighbors.csv").toString)
+    Files.write(
+      outDir.resolve("neighbors.csv"),
+      neighbors.result().getBytes("UTF-8"),
+      StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING
+    )
+
+    log.info(
+      "Wrote {}, {}",
+      outDir.resolve("token_embeddings.csv").toString,
+      outDir.resolve("neighbors.csv").toString
+    )
     println(s"Wrote: ${outDir.resolve("token_embeddings.csv")} and ${outDir.resolve("neighbors.csv")}")
   }
 }

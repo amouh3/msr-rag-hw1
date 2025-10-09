@@ -35,6 +35,7 @@ object Pdfs {
   /** Universal reader: supports file://, s3a://, hdfs:// URIs. */
   def readText(uri: String): String = {
     log.info("Pdfs.readText: uri={}", uri)
+
     def pdfTextFrom(bytes: Array[Byte]): String = {
       log.debug("Pdfs.readText: extracting text via PDFBox, bytes={}", Int.box(bytes.length))
       val t0 = System.nanoTime()
@@ -58,16 +59,26 @@ object Pdfs {
       log.info("Pdfs.readText: remote filesystem detected (s3a/hdfs)")
       val t0 = System.nanoTime()
       val conf = new Configuration()
-      val fs   = FileSystem.get(new java.net.URI(uri), conf)
+      val fs = FileSystem.get(new java.net.URI(uri), conf)
       val in: FSDataInputStream = fs.open(new HPath(uri))
       val bytes = try {
         val buf = new Array[Byte](64 * 1024)
-        val out = new ByteArrayOutputStream()
-        var n = in.read(buf)
-        var total = 0L
-        while (n > 0) { out.write(buf, 0, n); total += n; n = in.read(buf) }
-        log.debug("Pdfs.readText: streamed remote bytes={}", Long.box(total))
-        out.toByteArray
+        val byteChunks = LazyList
+          .continually(in.read(buf))
+          .takeWhile(_ > 0)
+          .map { n =>
+            val chunk = buf.slice(0, n) // copy only the read portion
+            chunk
+          }
+
+        val allBytes = new ByteArrayOutputStream()
+        val totalBytes = byteChunks.foldLeft(0L) { (total, chunk) =>
+          allBytes.write(chunk)
+          total + chunk.length
+        }
+
+        log.debug("Pdfs.readText: streamed remote bytes={}", Long.box(totalBytes))
+        allBytes.toByteArray
       } finally in.close()
       val dtMs = (System.nanoTime() - t0) / 1e6
       log.debug("Pdfs.readText: remote read completed (~{} ms, bytes={})", Double.box(dtMs), Int.box(bytes.length))

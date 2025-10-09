@@ -15,46 +15,45 @@ object EvalEmbeddings {
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  // ---- small, fast math helpers (vectors are expected to be same dim) ----
+  // ---- small, fast math helpers (vectors may be truncated to common length) ----
   private def dot(a: Array[Float], b: Array[Float]): Double = {
-    var s = 0.0
-    var i = 0
     val n = math.min(a.length, b.length)
-    while (i < n) { s += a(i) * b(i); i += 1 }
-    s
+    a.iterator.take(n).zip(b.iterator).map { case (x, y) => x * y }.sum
   }
-  private def l2(a: Array[Float]): Double = math.sqrt(dot(a, a))
+  private def l2(a: Array[Float]): Double =
+    math.sqrt(dot(a, a))
   private def cosine(a: Array[Float], b: Array[Float]): Double = {
     val na = l2(a); val nb = l2(b)
     if (na == 0.0 || nb == 0.0) 0.0 else dot(a, b) / (na * nb)
   }
   private def add(a: Array[Float], b: Array[Float]): Array[Float] = {
     val n = math.min(a.length, b.length)
-    val out = new Array[Float](n)
-    var i = 0
-    while (i < n) { out(i) = (a(i) + b(i)).toFloat; i += 1 }
-    out
+    Array.tabulate(n)(i => (a(i) + b(i)).toFloat)
   }
   private def sub(a: Array[Float], b: Array[Float]): Array[Float] = {
     val n = math.min(a.length, b.length)
-    val out = new Array[Float](n)
-    var i = 0
-    while (i < n) { out(i) = (a(i) - b(i)).toFloat; i += 1 }
-    out
+    Array.tabulate(n)(i => (a(i) - b(i)).toFloat)
   }
 
   // ---- lightweight arg parsing ----
   private def argAfter(flag: String, args: Array[String]): Option[String] =
     args.sliding(2).collectFirst { case Array(f, v) if f == flag => v }
 
+  // Parse a row of dim floats; if any element fails, return None (row skipped).
+  private def parseVec(cols: Array[String], dim: Int): Option[Array[Float]] = {
+    val init: Option[Vector[Float]] = Some(Vector.empty)
+    val maybeVals =
+      (0 until dim).foldLeft(init) { (acc, i) =>
+        acc.flatMap(v => Try(cols(i + 1).toFloat).toOption.map(f => v :+ f))
+      }
+    maybeVals.map(_.toArray)
+  }
+
   def main(args: Array[String]): Unit = {
     // 1) Resolve output directory (where token_embeddings.csv lives / where we will write *.csv)
-    //    Priority: --outDir arg > stats.outputDir in conf (from --conf) > error
     val outDir: Path = {
       argAfter("--outDir", args) match {
-        case Some(p) =>
-          // Robust on Windows: normalize slashes so tests don't need to care
-          Paths.get(p.replace("\\", "/"))
+        case Some(p) => Paths.get(p.replace("\\", "/"))
         case None =>
           val confPath = argAfter("--conf", args).getOrElse("conf/local.conf")
           log.info("EvalEmbeddings: using conf='{}'", confPath)
@@ -93,22 +92,13 @@ object EvalEmbeddings {
     }
     log.info("Embeddings header OK: dim={}", Int.box(dim))
 
-    val embs: Map[String, Array[Float]] = lines.tail.flatMap { ln =>
-      val cols = ln.split(",", -1) // keep empty fields if any
-      if (cols.length == dim + 1) {
-        val tok = cols.head
-        val vec = new Array[Float](dim)
-        var ok  = true
-        var i   = 0
-        while (i < dim && ok) {
-          ok = Try(cols(i + 1).toFloat).toOption.exists { f =>
-            vec(i) = f; true
-          }
-          i += 1
-        }
-        if (ok) Some(tok -> vec) else None
-      } else None
-    }.toMap
+    val embs: Map[String, Array[Float]] =
+      lines.tail.flatMap { ln =>
+        val cols = ln.split(",", -1) // keep empty fields if any
+        if (cols.length == dim + 1) {
+          parseVec(cols, dim).map(vec => cols.head -> vec)
+        } else None
+      }.toMap
 
     if (embs.isEmpty) {
       System.err.println("[ERROR] No usable rows found in token_embeddings.csv")
@@ -149,21 +139,18 @@ object EvalEmbeddings {
     val vecs = toks.map(embs).toArray
 
     val anaCsv = new StringBuilder("a,b,c,predicted,cosine\n")
-    analogies.foreach { case (a, b, c, _expected) =>
+    analogies.foreach { case (a, b, c, _) =>
       val target = add(sub(embs(a), embs(b)), embs(c))
-      // brute-force nearest neighbor
-      var bestTok = ""
-      var bestCos = Double.NegativeInfinity
-      var i       = 0
-      while (i < vecs.length) {
-        val t = toks(i)
-        if (t != a && t != b && t != c) {
-          val sc = cosine(target, vecs(i))
-          if (sc > bestCos) { bestCos = sc; bestTok = t }
-        }
-        i += 1
-      }
-      if (bestTok.nonEmpty && !bestCos.isNegInfinity) {
+      val bestOpt =
+        toks.iterator
+          .zip(vecs.iterator)
+          .filter { case (t, _) => t != a && t != b && t != c }
+          .map     { case (t, v) => (t, cosine(target, v)) }
+          .toVector
+          .sortBy  { case (_, s) => -s }
+          .headOption
+
+      bestOpt.foreach { case (bestTok, bestCos) =>
         anaCsv.append(s"$a,$b,$c,$bestTok,$bestCos\n")
       }
     }
