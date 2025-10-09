@@ -26,12 +26,16 @@ conf/big.conf
 conf/*.local.conf
 
 # --- Generated artifacts (created by running the app) ---
-out/
+# Ignore everything under out/, but keep CSVs in out/stats/
+out/**
+!out/.gitkeep
+!out/stats/
+out/stats/**
+!out/stats/*.csv
+
+# Keep MapReduce outputs ignored
 out_mr_out/
 out_mr_mr_out/
-
-!out/stats/
-!out/stats/*.csv
 
 # --- JARs (if you build fat jars locally) ---
 *.jar
