@@ -244,9 +244,13 @@ macOS/Linux:
 Default outputs:
 
 out/stats/vocab.csv
+
 out/stats/token_embeddings.csv
+
 out/stats/neighbors.csv
+
 out/stats/similarity.csv
+
 out/stats/analogy.csv
 
 Clean re-runs
