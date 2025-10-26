@@ -41,7 +41,6 @@ final class OllamaClient(baseUrl: String, connectTimeoutMs: Int = 5000, readTime
 
   /** Embed one text. Tries {"prompt": "..."} first, falls back to {"input": ["..."]}. */
   def embedOne(text: String, model: String): Vector[Float] = {
-    log.debug("embedOne: len(text)={}, model={}", Int.box(text.length), model)
     val t0 = System.nanoTime()
 
     val req1 = basicRequest
@@ -53,10 +52,8 @@ final class OllamaClient(baseUrl: String, connectTimeoutMs: Int = 5000, readTime
     req1.send(backend).body match {
       case Right(ok) if ok.embedding.nonEmpty =>
         val dtMs = (System.nanoTime() - t0) / 1e6
-        log.debug("embedOne: primary(prompt) succeeded, dim={}, took ~{}ms", Int.box(ok.embedding.length), Double.box(dtMs))
         ok.embedding
       case other =>
-        log.warn("embedOne: primary(prompt) failed or empty={}, falling back to multi-input path", other.left.toOption.map(_.getMessage).getOrElse("empty"))
         val t1 = System.nanoTime()
         val req2 = basicRequest
           .post(embedUri)
@@ -67,10 +64,9 @@ final class OllamaClient(baseUrl: String, connectTimeoutMs: Int = 5000, readTime
         req2.send(backend).body match {
           case Right(m) if m.embeddings.nonEmpty =>
             val dtMs = (System.nanoTime() - t1) / 1e6
-            log.debug("embedOne: fallback(input[1]) succeeded, dim={}, took ~{}ms", Int.box(m.embeddings.head.length), Double.box(dtMs))
+            log.debug(s"embedOne: fallback(input[1]) succeeded, dim=${m.embeddings.head.length}, took ~${dtMs}ms")
             m.embeddings.head
           case fail =>
-            log.error("embedOne: fallback(input[1]) failed or empty={}; returning empty embedding", fail.left.toOption.map(_.getMessage).getOrElse("empty"))
             Vector.empty
         }
     }
@@ -108,10 +104,9 @@ final class OllamaClient(baseUrl: String, connectTimeoutMs: Int = 5000, readTime
           req.send(backend).body match {
             case Right(multi) =>
               val dt = (System.nanoTime() - start) / 1e6
-              log.debug("embedBatch[group]: multi-input success, returned={}, took ~{}ms", Int.box(multi.embeddings.size), Double.box(dt))
+              log.debug(s"embedBatch[group]: multi-input success, returned=${multi.embeddings.size}, took ~${dt}ms")
               Right(multi.embeddings)
             case Left(err) =>
-              log.warn("embedBatch[group]: multi-input returned error: {}", err.getMessage)
               Left(new RuntimeException(err.getMessage))
           }
         }

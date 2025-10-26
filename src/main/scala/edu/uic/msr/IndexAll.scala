@@ -69,7 +69,6 @@ object IndexAll {
 
         // Embed in mini-batches
         chunks.grouped(batch).zipWithIndex.foreach { case (group, gi) =>
-          log.debug("Embedding batch gi={} size={}", Int.box(gi), Int.box(group.size))
           val vecs: Vector[Array[Float]] = Ollama.embed(group.toVector, model)
           group.zip(vecs).zipWithIndex.foreach { case ((chunkText, vec), cj) =>
             val idxInDoc = gi * batch + cj

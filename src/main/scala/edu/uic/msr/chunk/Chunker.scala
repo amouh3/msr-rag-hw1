@@ -48,11 +48,10 @@ object Chunker {
 
     val n = clean.length
 
-    val indices = LazyList.iterate(0)(_ + stride).takeWhile(_ < n)
+    val indices = Stream.iterate(0)(_ + stride).takeWhile(_ < n)
 
     val res = indices.map { i =>
       val end = math.min(i + maxChars, n)
-      log.trace("Chunker.chunks: slice i={}..end={}", Int.box(i), Int.box(end))
       clean.substring(i, end)
     }.toVector
 

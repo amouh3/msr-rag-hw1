@@ -146,11 +146,11 @@ object JobMain {
     // ---- Build job ----
     log.info("JobMain: constructing Hadoop Job")
     val job = Job.getInstance(hConf, s"MSR-RAG Index (shards=$shards)")
-    job.setJarByClass(classOf[RagMapper]) // ensures all classes are on the job jar
+//    job.setJarByClass(classOf[RagMapper]) // ensures all classes are on the job jar
 
     // Mapper/Reducer classes
-    job.setMapperClass(classOf[RagMapper])
-    job.setReducerClass(classOf[ShardReducer])
+//    job.setMapperClass(classOf[RagMapper])
+//    job.setReducerClass(classOf[ShardReducer])
     job.setNumReduceTasks(shards)
 
     // Mapper outputs

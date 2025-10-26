@@ -7,7 +7,7 @@ import org.apache.lucene.search.{IndexSearcher, TopDocs}
 import org.apache.lucene.document.Document
 import org.apache.lucene.search.KnnFloatVectorQuery
 import java.nio.file.{Files, Paths}
-import scala.jdk.CollectionConverters._
+import scala.collection.JavaConverters._
 import org.slf4j.LoggerFactory
 import edu.uic.msr.ollama.Ollama
 
@@ -45,7 +45,8 @@ object LuceneSearchSmoke {
     val cfg      = ConfigFactory.parseFile(new java.io.File(confPath)).resolve()
     val rootOut  = cfg.getString("mr.outputDir").stripPrefix("file:///")
     val model    = cfg.getString("embed.model")
-    val k        = after("--k").flatMap(s => s.toIntOption).getOrElse(10)
+    val k = after("--k").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(10)
+
     val query    = after("--q").getOrElse("android permissions")
 
     log.info("LuceneSearchSmoke: conf='{}', root='{}', model='{}', k={}, q='{}'",
@@ -58,12 +59,10 @@ object LuceneSearchSmoke {
         throw new RuntimeException("Empty embedding from Ollama")
       }
       val dt = (System.nanoTime() - t0) / 1e6
-      log.info("Embedded query (dim={}, ~{} ms)", Int.box(v.length), Double.box(dt))
       v
     }
 
     val shards = listShardDirs(rootOut)
-    log.info("Found {} shard dir(s) under {}", Int.box(shards.size), rootOut)
     require(shards.nonEmpty, s"No shard dirs under $rootOut")
 
     // Search each shard

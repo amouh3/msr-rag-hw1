@@ -18,7 +18,6 @@ object PromptBuilder {
   private val log = LoggerFactory.getLogger(getClass)
 
   def build(question: String, contexts: Seq[String]): String = {
-    log.debug("PromptBuilder.build: contexts={}, questionChars={}", Int.box(contexts.size), Int.box(question.length))
     val numbered = contexts.zipWithIndex.map { case (c,i) => s"[${i+1}] ${c.trim}" }.mkString("\n---\n")
     s"""SYSTEM:
 Answer using ONLY the context chunks below.

@@ -41,9 +41,8 @@ object Pdfs {
       val t0 = System.nanoTime()
       val doc = PDDocument.load(bytes)
       try {
-        val text = PDFTextStripper().getText(doc)
+        val text = new org.apache.pdfbox.text.PDFTextStripper().getText(doc)
         val dtMs = (System.nanoTime() - t0) / 1e6
-        log.debug("Pdfs.readText: PDFBox extraction completed (~{} ms, chars={})", Double.box(dtMs), Int.box(text.length))
         text
       } catch {
         case ex: Exception =>
@@ -63,7 +62,7 @@ object Pdfs {
       val in: FSDataInputStream = fs.open(new HPath(uri))
       val bytes = try {
         val buf = new Array[Byte](64 * 1024)
-        val byteChunks = LazyList
+        val byteChunks = Stream
           .continually(in.read(buf))
           .takeWhile(_ > 0)
           .map { n =>
@@ -81,7 +80,6 @@ object Pdfs {
         allBytes.toByteArray
       } finally in.close()
       val dtMs = (System.nanoTime() - t0) / 1e6
-      log.debug("Pdfs.readText: remote read completed (~{} ms, bytes={})", Double.box(dtMs), Int.box(bytes.length))
       pdfTextFrom(bytes)
     } else {
       // treat as local/absolute or relative path
@@ -89,7 +87,6 @@ object Pdfs {
       val t0 = System.nanoTime()
       val bytes = Files.readAllBytes(Path.of(uri))
       val dtMs = (System.nanoTime() - t0) / 1e6
-      log.debug("Pdfs.readText: local read completed (~{} ms, bytes={})", Double.box(dtMs), Int.box(bytes.length))
       pdfTextFrom(bytes)
     }
   }

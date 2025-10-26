@@ -50,7 +50,6 @@ object SimpleIndex {
             }
         }
 
-      log.info("SimpleIndex.loadJsonl: loaded={} skipped={}", Int.box(parsed), Int.box(skipped))
       revChunks.reverse.toVector
     } finally {
       src.close()

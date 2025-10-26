@@ -4,7 +4,6 @@ import java.io.{File, PrintWriter}
 import java.nio.file.{Files, Paths}
 import java.security.MessageDigest
 import scala.io.Source
-import scala.util.Using
 
 // If these exist in your project, we’ll use them. If not, we’ll fall back to naive chunking.
 import edu.uic.msr.pdf.Pdfs
@@ -137,7 +136,10 @@ object Indexer {
       // Use your Pdfs helper if available
       try Pdfs.readText(f.getAbsolutePath) catch { case _: Throwable => "" }
     } else if (name.endsWith(".txt")) {
-      Using.resource(Source.fromFile(f, "UTF-8"))(_.mkString)
+      val src = Source.fromFile(f, "UTF-8")
+      try src.mkString
+      finally src.close()
+
     } else ""
   }
 
@@ -172,7 +174,6 @@ object Indexer {
     val outDir    = Paths.get(outPath).getParent
     if (outDir != null && !Files.exists(outDir)) Files.createDirectories(outDir)
 
-    log.info("Indexer: input={}, outPath={}", input.getAbsolutePath, outPath)
 
     val files =
       if (input.isDirectory)
@@ -221,7 +222,6 @@ object Indexer {
                       pw.println(json.noSpaces)
                       chunkAcc + 1
                     case Left(err) =>
-                      log.error("Indexer[chunk]: EMBED FAIL for {}: {}", f.getName, err.take(200))
                       System.err.println(s"[EMBED FAIL] ${f.getName}: ${err.take(200)}")
                       chunkAcc
                   }
@@ -237,7 +237,6 @@ object Indexer {
           }
         }
 
-      log.info("Indexer: wrote {} chunk(s) → {}", Int.box(totalWritten), outPath)
       println(s"Indexed $totalWritten chunks → $outPath")
     } finally {
       pw.flush()

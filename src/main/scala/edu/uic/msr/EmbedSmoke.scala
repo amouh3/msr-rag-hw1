@@ -1,7 +1,6 @@
 package edu.uic.msr
 
 import com.typesafe.config.{Config, ConfigFactory}
-import scala.util.Using
 import scala.io.Source
 import edu.uic.msr.pdf.Pdfs
 import edu.uic.msr.chunk.Chunker
@@ -40,10 +39,13 @@ object EmbedSmoke {
     log.info(s"EmbedSmoke: list=$list model=$model maxChars=$maxChars overlap=$overlap")
     sys.env.get("OLLAMA_HOST").foreach(h => log.info(s"OLLAMA_HOST=$h"))
 
-    val firstPathOpt =
-      Using.resource(Source.fromFile(list)) { src =>
-        src.getLines().map(_.replace("\uFEFF","").trim).find(_.nonEmpty)
-      }
+    // --- Scala 2.12-compatible replacement for Using.resource ---
+    val src = Source.fromFile(list)
+    val firstPathOpt = try {
+      src.getLines().map(_.replace("\uFEFF", "").trim).find(_.nonEmpty)
+    } finally {
+      src.close()
+    }
 
     if (firstPathOpt.isEmpty) {
       log.error("No PDF paths found in io.pdfListFile")

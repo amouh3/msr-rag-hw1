@@ -58,7 +58,6 @@ object VocabExport {
     val out = outDir.resolve("vocab.csv")
     Files.write(out, csv.result().getBytes("UTF-8"), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
 
-    log.info("VocabExport: wrote {} rows → {}", Int.box(vocab.size), out.toAbsolutePath.toString)
     println(s"Wrote ${vocab.size} rows → ${out.toAbsolutePath}")
   }
 }

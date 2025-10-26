@@ -43,7 +43,6 @@ object EvalEmbeddings {
     val outDir   = Paths.get(cfg.getString("stats.outputDir"))
     Files.createDirectories(outDir)
 
-    log.info("EvalEmbeddings: conf='{}', outDir='{}'", confPath, outDir.toString)
 
     // Load token embeddings (header: token,d0..d{dim-1})
     val embFile = outDir.resolve("token_embeddings.csv").toString
@@ -51,7 +50,6 @@ object EvalEmbeddings {
     val lines   = try src.getLines().toVector finally src.close()
     val header  = lines.head.split(",").toVector
     val dim     = header.size - 1
-    log.info("Embeddings: file='{}', tokens={}, dim={}", embFile, Int.box(lines.size - 1), Int.box(dim))
 
     val embs = lines.tail.flatMap { ln =>
       val cols = ln.split(",")
@@ -61,7 +59,6 @@ object EvalEmbeddings {
         Some(tok -> vec) // assumed already L2 from previous step
       } else None
     }.toMap
-    log.info("Loaded embeddings: {}", Int.box(embs.size))
 
     // ---- Word Similarity ----
     val similarPairs = Vector(
@@ -71,7 +68,6 @@ object EvalEmbeddings {
       "repository" -> "repo",
       "issue" -> "bug"
     ).filter { case (a, b) => embs.contains(a) && embs.contains(b) }
-    log.debug("Similarity pairs kept: {}", Int.box(similarPairs.size))
 
     val simCsv = new StringBuilder("w1,w2,cosine\n")
     similarPairs.foreach { case (a, b) =>
@@ -89,7 +85,6 @@ object EvalEmbeddings {
       ("issue","bug","patch","commit"),
       ("project","repository","paper","conference")
     ).filter { case (a, b, c, _) => embs.contains(a) && embs.contains(b) && embs.contains(c) }
-    log.debug("Analogy triplets kept: {}", Int.box(analogies.size))
 
     val anaCsv = new StringBuilder("a,b,c,predicted,cosine\n")
     val toks   = embs.keys.toVector
@@ -117,11 +112,6 @@ object EvalEmbeddings {
       StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING
     )
 
-    log.info(
-      "EvalEmbeddings: wrote {}, {}",
-      outDir.resolve("similarity.csv").toString,
-      outDir.resolve("analogy.csv").toString
-    )
 
     println(s"Wrote: ${outDir.resolve("similarity.csv")} and ${outDir.resolve("analogy.csv")}")
   }

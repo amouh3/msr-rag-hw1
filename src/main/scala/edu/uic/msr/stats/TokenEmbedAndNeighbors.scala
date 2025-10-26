@@ -41,10 +41,7 @@ object TokenEmbedAndNeighbors {
     val batch    = if (cfg.hasPath("embed.batch"))     cfg.getInt("embed.batch")     else 64
     Files.createDirectories(outDir)
 
-    log.info(
-      "TokenEmbedAndNeighbors: conf='{}', outDir='{}', model='{}', topN={}, kNN={}, batch={}",
-      confPath, outDir.toString, model, Int.box(topN), Int.box(kNN), Int.box(batch)
-    )
+
 
     // Read topN tokens from vocab.csv (expects header: token,token_id,freq)
     val vocabCsv = outDir.resolve("vocab.csv").toString
@@ -52,7 +49,6 @@ object TokenEmbedAndNeighbors {
       val cols = line.split(",", 3)
       if (cols.length >= 1) Some(cols(0)) else None
     }.toVector
-    log.info("Loaded {} tokens from {}", Int.box(vocab.size), vocabCsv)
 
     // ---- Batched embedding + L2 normalization ----
     val vecs = vocab
@@ -66,7 +62,6 @@ object TokenEmbedAndNeighbors {
 
     val dim  = vecs.headOption.map(_.length).getOrElse(0)
     println(s"Embedded ${vecs.size} tokens (requested topN=$topN); dim=$dim; batch=$batch")
-    log.info("Embeddings ready: count={}, dim={}", Int.box(vecs.size), Int.box(dim))
 
     // Write token_embeddings.csv
     val embCsv = new StringBuilder
@@ -110,11 +105,7 @@ object TokenEmbedAndNeighbors {
       StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING
     )
 
-    log.info(
-      "Wrote {}, {}",
-      outDir.resolve("token_embeddings.csv").toString,
-      outDir.resolve("neighbors.csv").toString
-    )
+
     println(s"Wrote: ${outDir.resolve("token_embeddings.csv")} and ${outDir.resolve("neighbors.csv")}")
   }
 }
