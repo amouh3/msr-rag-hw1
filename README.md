@@ -6,8 +6,12 @@ Name: Ali Mouhtadi
 
 Email: amouh3@uic.edu  
 
-## Demo Video on AWS Deployment and Execution: 
-- https://www.youtube.com/watch?v=ipGOIyptAg8
+## Screenshots on AWS Deployment and Execution(detailed steps are below): 
+<img width="843" height="455" alt="jxdyftr" src="https://github.com/user-attachments/assets/5d7308a5-8136-42e4-8679-0a48afdb0454" />
+<img width="945" height="627" alt="ofo" src="https://github.com/user-attachments/assets/978f723d-75a8-4c1e-ae35-4d49c8d14482" />
+<img width="1157" height="487" alt="dkcjty" src="https://github.com/user-attachments/assets/cd77bc30-9e5f-4470-ac8a-d39ceb3824b4" />
+<img width="1093" height="874" alt="shdfg" src="https://github.com/user-attachments/assets/252c17d1-1e42-46a6-a843-b81bc7d0800c" />
+
 
 
 
@@ -29,7 +33,7 @@ Pipeline: extract → chunk → embed → **Lucene HNSW** index (MapReduce local
 
 - embed query → retrieve → pack context → generate with an Ollama LLM
 
-The repo is self-contained for the default run: it uses a small 30-PDF corpus and a relative list file so graders don’t need extra data.
+The repo is self-contained for the default run: it uses a small 30-PDF corpus and a relative list file so users don’t need extra data.
 
 
 Further information regarding my selected configuration parameters, limitations, and detail on my findings are attached near the bottom of this readme. Additional information beyond this can be found in the comments of my code.
