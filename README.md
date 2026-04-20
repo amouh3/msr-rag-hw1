@@ -6,14 +6,6 @@ Name: Ali Mouhtadi
 
 Email: amouh3@uic.edu  
 
-## Screenshots on AWS Deployment and Execution(detailed steps are below): 
-<img width="1093" height="874" alt="shdfg" src="https://github.com/user-attachments/assets/252c17d1-1e42-46a6-a843-b81bc7d0800c" />
-<img width="1157" height="487" alt="dkcjty" src="https://github.com/user-attachments/assets/cd77bc30-9e5f-4470-ac8a-d39ceb3824b4" />
-<img width="843" height="455" alt="jxdyftr" src="https://github.com/user-attachments/assets/5d7308a5-8136-42e4-8679-0a48afdb0454" />
-<img width="945" height="627" alt="ofo" src="https://github.com/user-attachments/assets/978f723d-75a8-4c1e-ae35-4d49c8d14482" />
-
-
-
 
 
 Retrieval-Augmented Generation (RAG) over the MSR PDF corpus. Extract → chunk → embed → index with Lucene HNSW, then answer questions using only retrieved MSR context via Ollama. 
@@ -452,6 +444,13 @@ The results validated that the end-to-end pipeline, from document input to embed
 The Mapper component read each PDF path, extracted its text using Apache PDFBox, split it into tokenized sentences, and requested embeddings from Ollama. Each mapper emitted key–value pairs where the key was the shard identifier and the value was the serialized Lucene document or embedding data.
 
 The Reducer merged the intermediate results, building Lucene indexes and aggregating word statistics. It handled shard consolidation, vocabulary counting, and vector computations necessary for similarity and analogy evaluation.
+
+
+## Screenshots on AWS Deployment and Execution(detailed steps are below): 
+<img width="1093" height="874" alt="shdfg" src="https://github.com/user-attachments/assets/252c17d1-1e42-46a6-a843-b81bc7d0800c" />
+<img width="1157" height="487" alt="dkcjty" src="https://github.com/user-attachments/assets/cd77bc30-9e5f-4470-ac8a-d39ceb3824b4" />
+<img width="843" height="455" alt="jxdyftr" src="https://github.com/user-attachments/assets/5d7308a5-8136-42e4-8679-0a48afdb0454" />
+<img width="945" height="627" alt="ofo" src="https://github.com/user-attachments/assets/978f723d-75a8-4c1e-ae35-4d49c8d14482" />
 
 
 # AWS Deployment
