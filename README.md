@@ -7,6 +7,8 @@ Name: Ali Mouhtadi
 Email: amouh3@uic.edu  
 
 
+## Demo Video on AWS Deployment and Execution: 
+- https://www.youtube.com/watch?v=ipGOIyptAg8
 
 Retrieval-Augmented Generation (RAG) over the MSR PDF corpus. Extract → chunk → embed → index with Lucene HNSW, then answer questions using only retrieved MSR context via Ollama. 
 Pipeline: extract → chunk → embed → **Lucene HNSW** index (MapReduce local mode) → retrieve → answer with **Ollama**.
